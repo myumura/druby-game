@@ -1,0 +1,10 @@
+source 'https://rubygems.org'
+
+gem 'drb'
+gem 'colorize'
+gem 'sinatra'
+gem 'sinatra-contrib'
+gem 'faye-websocket'
+gem 'json'
+gem 'puma'
+gem 'rackup' 

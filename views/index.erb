@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>DRuby Cooperative Game</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f0f0f0;
+    }
+    #game-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    #game-map {
+      display: grid;
+      grid-template-columns: repeat(21, 30px);
+      grid-template-rows: repeat(21, 30px);
+      gap: 1px;
+      background-color: #ddd;
+      padding: 10px;
+      margin: 20px 0;
+    }
+    .cell {
+      width: 30px;
+      height: 30px;
+      background-color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+    }
+    .player {
+      color: green;
+    }
+    .treasure {
+      color: gold;
+    }
+    .obstacle {
+      color: red;
+    }
+    #controls {
+      margin-top: 20px;
+      text-align: center;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #status {
+      margin-top: 20px;
+      padding: 10px;
+      background-color: #f8f8f8;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <h1>DRuby Cooperative Game</h1>
+    <div id="login-form">
+      <input type="text" id="player-name" placeholder="Enter your name">
+      <select id="player-role">
+        <option value="explorer">Explorer</option>
+        <option value="engineer">Engineer</option>
+      </select>
+      <button onclick="registerPlayer()">Join Game</button>
+    </div>
+    <div id="game-map"></div>
+    <div id="controls" style="display: none;">
+      <button onclick="move('up')">↑</button><br>
+      <button onclick="move('left')">←</button>
+      <button onclick="move('right')">→</button><br>
+      <button onclick="move('down')">↓</button>
+      <br><br>
+      <button onclick="resetGame()" style="background-color: #ff4444; color: white;">Reset Game</button>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <script>
+    let ws;
+    let playerName = '';
+    let playerRole = '';
+
+    function connect() {
+      console.log('Attempting to connect to WebSocket...');
+      ws = new WebSocket('ws://' + window.location.host + '/websocket');
+      
+      ws.onopen = function() {
+        console.log('WebSocket connection established');
+      };
+      
+      ws.onmessage = function(event) {
+        console.log('Received message:', event.data);
+        const data = JSON.parse(event.data);
+        switch(data.type) {
+          case 'register_success':
+            console.log('Registration successful');
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('controls').style.display = 'block';
+            playerName = document.getElementById('player-name').value;
+            playerRole = document.getElementById('player-role').value;
+            break;
+          case 'register_failed':
+            console.log('Registration failed:', data.message);
+            alert(data.message);
+            break;
+          case 'game_state':
+            console.log('Updating game state:', data.state);
+            updateGameState(data.state);
+            break;
+        }
+      };
+
+      ws.onerror = function(error) {
+        console.error('WebSocket error:', error);
+      };
+
+      ws.onclose = function() {
+        console.log('WebSocket connection closed');
+      };
+    }
+
+    function registerPlayer() {
+      const name = document.getElementById('player-name').value;
+      const role = document.getElementById('player-role').value;
+      if (name && role) {
+        console.log('Sending registration request:', { name, role });
+        ws.send(JSON.stringify({
+          type: 'register',
+          name: name,
+          role: role
+        }));
+      }
+    }
+
+    function move(direction) {
+      console.log('Sending move request:', { name: playerName, direction });
+      ws.send(JSON.stringify({
+        type: 'move',
+        name: playerName,
+        direction: direction
+      }));
+    }
+
+    function resetGame() {
+      if (confirm('Are you sure you want to reset the game? All players will be removed.')) {
+        console.log('Sending reset request');
+        ws.send(JSON.stringify({
+          type: 'reset'
+        }));
+        // ログインフォームを表示
+        document.getElementById('login-form').style.display = 'block';
+        document.getElementById('controls').style.display = 'none';
+        playerName = '';
+        playerRole = '';
+      }
+    }
+
+    function updateGameState(state) {
+      console.log('Updating game state with:', state);
+      
+      // マップの更新
+      const map = document.getElementById('game-map');
+      map.innerHTML = '';
+      
+      // マップの生成
+      for (let y = 10; y >= -10; y--) {
+        for (let x = -10; x <= 10; x++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          
+          // プレイヤーの表示
+          let isPlayer = false;
+          if (state.players) {
+            for (const [name, player] of Object.entries(state.players)) {
+              if (player.position[0] === x && player.position[1] === y) {
+                cell.textContent = 'P';
+                cell.classList.add('player');
+                isPlayer = true;
+                break;
+              }
+            }
+          }
+          
+          // 宝の表示
+          if (!isPlayer && state.treasures) {
+            for (const treasure of state.treasures) {
+              if (treasure.position[0] === x && treasure.position[1] === y && !treasure.found) {
+                cell.textContent = 'T';
+                cell.classList.add('treasure');
+                break;
+              }
+            }
+          }
+          
+          // 障害物の表示
+          if (!isPlayer && state.obstacles) {
+            for (const obstacle of state.obstacles) {
+              if (obstacle.position[0] === x && obstacle.position[1] === y && !obstacle.cleared) {
+                cell.textContent = 'O';
+                cell.classList.add('obstacle');
+                break;
+              }
+            }
+          }
+          
+          map.appendChild(cell);
+        }
+      }
+      
+      // ステータスの更新
+      const status = document.getElementById('status');
+      const gameState = state.game_state || {};
+      status.innerHTML = `
+        <h3>Game Progress:</h3>
+        <p>Treasures found: ${gameState.treasures_found || 0}/${gameState.total_treasures || 0}</p>
+        <p>Obstacles cleared: ${gameState.obstacles_cleared || 0}/${gameState.total_obstacles || 0}</p>
+        <h3>Players:</h3>
+        ${Object.entries(state.players || {}).map(([name, player]) => 
+          `<p>${name} (${player.role}) at position [${player.position[0]}, ${player.position[1]}]</p>`
+        ).join('')}
+      `;
+    }
+
+    // 初期接続
+    connect();
+  </script>
+</body>
+</html> 
