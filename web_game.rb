@@ -106,4 +106,7 @@ class WebGame < Sinatra::Base
       sleep 0.1
     end
   end
-end 
+end
+
+# Sinatraアプリケーションを起動
+WebGame.run! 

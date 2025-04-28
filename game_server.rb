@@ -6,20 +6,35 @@ class GameServer
     @players = {}
     @game_state = {
       treasures_found: 0,
-      total_treasures: 3,
+      total_treasures: 5,
       obstacles_cleared: 0,
-      total_obstacles: 5
+      total_obstacles: 8,
+      time_remaining: 300, # 5分
+      game_started: true,
+      game_over: false
     }
     @treasures = generate_treasures
     @obstacles = generate_obstacles
+    @special_items = generate_special_items
     puts "Initial game state:".green
     puts "Treasures: #{@treasures.inspect}"
     puts "Obstacles: #{@obstacles.inspect}"
+    puts "Special items: #{@special_items.inspect}"
+
+    # タイマースレッドの開始
+    start_timer
   end
 
   def register_player(name, role, avatar)
     return false if @players[name]
-    @players[name] = { role: role, position: [0, 0], avatar: avatar }
+    @players[name] = { 
+      role: role, 
+      position: [0, 0], 
+      avatar: avatar,
+      score: 0,
+      items: [],
+      power_ups: []
+    }
     broadcast_update
     true
   end
@@ -50,10 +65,14 @@ class GameServer
         treasures_found: @game_state[:treasures_found],
         total_treasures: @game_state[:total_treasures],
         obstacles_cleared: @game_state[:obstacles_cleared],
-        total_obstacles: @game_state[:total_obstacles]
+        total_obstacles: @game_state[:total_obstacles],
+        time_remaining: @game_state[:time_remaining],
+        game_started: @game_state[:game_started],
+        game_over: @game_state[:game_over]
       },
       obstacles: @obstacles,
-      treasures: @treasures
+      treasures: @treasures,
+      special_items: @special_items
     }
     puts "Sending game state: #{state.inspect}"
     state
@@ -63,17 +82,38 @@ class GameServer
     @players = {}
     @game_state = {
       treasures_found: 0,
-      total_treasures: 3,
+      total_treasures: 5,
       obstacles_cleared: 0,
-      total_obstacles: 5
+      total_obstacles: 8,
+      time_remaining: 300,
+      game_started: false,
+      game_over: false
     }
     @treasures = generate_treasures
     @obstacles = generate_obstacles
+    @special_items = generate_special_items
     puts "Game reset:".green
     puts "Treasures: #{@treasures.inspect}"
     puts "Obstacles: #{@obstacles.inspect}"
+    puts "Special items: #{@special_items.inspect}"
     broadcast_update
     true
+  end
+
+  def start_timer
+    Thread.new do
+      loop do
+        sleep 1
+        if @game_state[:game_started] && !@game_state[:game_over]
+          @game_state[:time_remaining] = [@game_state[:time_remaining] - 1, 0].max
+          if @game_state[:time_remaining] <= 0
+            @game_state[:game_over] = true
+            puts "Game over! Time's up!"
+          end
+          broadcast_update
+        end
+      end
+    end
   end
 
   private
@@ -81,11 +121,11 @@ class GameServer
   def generate_treasures
     treasures = []
     while treasures.size < @game_state[:total_treasures]
-      x = rand(-5..5)
-      y = rand(-5..5)
+      x = rand(-8..8)
+      y = rand(-8..8)
       # 他の宝と重ならないようにする
       next if treasures.any? { |t| t[:position] == [x, y] }
-      treasures << { position: [x, y], found: false }
+      treasures << { position: [x, y], found: false, value: rand(100..500) }
     end
     treasures
   end
@@ -93,15 +133,39 @@ class GameServer
   def generate_obstacles
     obstacles = []
     while obstacles.size < @game_state[:total_obstacles]
-      x = rand(-5..5)
-      y = rand(-5..5)
+      x = rand(-8..8)
+      y = rand(-8..8)
       # 宝の位置と重ならないようにする
       next if @treasures.any? { |t| t[:position] == [x, y] }
       # 他の障害物と重ならないようにする
       next if obstacles.any? { |obs| obs[:position] == [x, y] }
-      obstacles << { position: [x, y], cleared: false }
+      obstacles << { position: [x, y], cleared: false, type: ['rock', 'tree', 'water'].sample }
     end
     obstacles
+  end
+
+  def generate_special_items
+    items = []
+    item_types = [
+      { type: 'speed_boost', duration: 10, effect: 'Move twice as fast' },
+      { type: 'time_boost', duration: 30, effect: 'Add 30 seconds to the timer' },
+      { type: 'treasure_radar', duration: 15, effect: 'See all treasures on the map' },
+      { type: 'obstacle_breaker', duration: 1, effect: 'Clear all obstacles in a 3x3 area' }
+    ]
+    
+    5.times do
+      x = rand(-8..8)
+      y = rand(-8..8)
+      # 他のアイテムと重ならないようにする
+      next if items.any? { |i| i[:position] == [x, y] }
+      # 宝や障害物と重ならないようにする
+      next if @treasures.any? { |t| t[:position] == [x, y] }
+      next if @obstacles.any? { |o| o[:position] == [x, y] }
+      
+      item = item_types.sample.merge(position: [x, y], collected: false)
+      items << item
+    end
+    items
   end
 
   def check_game_state
@@ -112,7 +176,8 @@ class GameServer
           if treasure[:position] == player[:position] && !treasure[:found]
             treasure[:found] = true
             @game_state[:treasures_found] += 1
-            puts "Treasure found by #{name} at position #{treasure[:position]}"
+            player[:score] += treasure[:value]
+            puts "Treasure found by #{name} at position #{treasure[:position]} (value: #{treasure[:value]})"
           end
         end
       end
@@ -125,8 +190,21 @@ class GameServer
           if obstacle[:position] == player[:position] && !obstacle[:cleared]
             obstacle[:cleared] = true
             @game_state[:obstacles_cleared] += 1
+            player[:score] += 50
             puts "Obstacle cleared by #{name} at position #{obstacle[:position]}"
           end
+        end
+      end
+    end
+
+    # 特殊アイテムの取得をチェック
+    @players.each do |name, player|
+      @special_items.each do |item|
+        if item[:position] == player[:position] && !item[:collected]
+          item[:collected] = true
+          player[:items] << item
+          player[:score] += 100
+          puts "Special item collected by #{name}: #{item[:type]}"
         end
       end
     end
@@ -139,6 +217,7 @@ class GameServer
     puts "Game state: #{@game_state}"
     puts "Obstacles: #{@obstacles}"
     puts "Treasures: #{@treasures}"
+    puts "Special items: #{@special_items}"
   end
 end
 

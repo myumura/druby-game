@@ -34,6 +34,7 @@
       align-items: center;
       justify-content: center;
       font-weight: bold;
+      font-size: 20px;
     }
     .player {
       color: green;
@@ -42,7 +43,10 @@
       color: gold;
     }
     .obstacle {
-      color: red;
+      color: #666;
+    }
+    .special-item {
+      color: #ff6b6b;
     }
     #controls {
       margin-top: 20px;
@@ -53,12 +57,47 @@
       margin: 5px;
       font-size: 16px;
       cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      background-color: #4CAF50;
+      color: white;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #45a049;
     }
     #status {
       margin-top: 20px;
       padding: 10px;
       background-color: #f8f8f8;
       border-radius: 5px;
+    }
+    .player-status {
+      margin: 10px 0;
+      padding: 10px;
+      background-color: #fff;
+      border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .player-status p {
+      margin: 5px 0;
+    }
+    #login-form {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    #login-form input,
+    #login-form select {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    #login-form button {
+      background-color: #2196F3;
+    }
+    #login-form button:hover {
+      background-color: #1976D2;
     }
   </style>
 </head>
@@ -102,6 +141,11 @@
     let playerName = '';
     let playerRole = '';
     let playerAvatar = '';
+
+    // ページ読み込み時にWebSocket接続を開始
+    window.onload = function() {
+      connect();
+    };
 
     function connect() {
       console.log('Attempting to connect to WebSocket...');
@@ -182,6 +226,15 @@
       }
     }
 
+    function formatTime(seconds) {
+      if (isNaN(seconds) || seconds < 0) {
+        return '0:00';
+      }
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+      return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    }
+
     function updateGameState(state) {
       console.log('Updating game state with:', state);
       
@@ -212,7 +265,7 @@
           if (!isPlayer && state.treasures) {
             for (const treasure of state.treasures) {
               if (treasure.position[0] === x && treasure.position[1] === y && !treasure.found) {
-                cell.textContent = 'T';
+                cell.textContent = '💎';
                 cell.classList.add('treasure');
                 break;
               }
@@ -223,8 +276,21 @@
           if (!isPlayer && state.obstacles) {
             for (const obstacle of state.obstacles) {
               if (obstacle.position[0] === x && obstacle.position[1] === y && !obstacle.cleared) {
-                cell.textContent = 'O';
+                cell.textContent = obstacle.type === 'rock' ? '🪨' : obstacle.type === 'tree' ? '🌳' : '💧';
                 cell.classList.add('obstacle');
+                break;
+              }
+            }
+          }
+
+          // 特殊アイテムの表示
+          if (!isPlayer && state.special_items) {
+            for (const item of state.special_items) {
+              if (item.position[0] === x && item.position[1] === y && !item.collected) {
+                cell.textContent = item.type === 'speed_boost' ? '⚡' : 
+                                 item.type === 'time_boost' ? '⏰' : 
+                                 item.type === 'treasure_radar' ? '🔍' : '💥';
+                cell.classList.add('special-item');
                 break;
               }
             }
@@ -239,21 +305,32 @@
       const gameState = state.game_state || {};
       const isGameClear = gameState.treasures_found === gameState.total_treasures && 
                         gameState.obstacles_cleared === gameState.total_obstacles;
+      const isGameOver = gameState.game_over;
       
       status.innerHTML = `
         <h3>Game Progress:</h3>
+        <p>Time remaining: ${formatTime(gameState.time_remaining)}</p>
         <p>Treasures found: ${gameState.treasures_found || 0}/${gameState.total_treasures || 0}</p>
         <p>Obstacles cleared: ${gameState.obstacles_cleared || 0}/${gameState.total_obstacles || 0}</p>
         ${isGameClear ? '<h2 style="color: gold;">🎉 Game Clear! 🎉</h2>' : ''}
+        ${isGameOver ? '<h2 style="color: red;">⏰ Game Over! Time is up! ⏰</h2>' : ''}
         <h3>Players:</h3>
-        ${Object.entries(state.players || {}).map(([name, player]) => 
-          `<p>${player.avatar || 'P'} ${name} (${player.role}) at position [${player.position[0]}, ${player.position[1]}]</p>`
-        ).join('')}
+        ${Object.entries(state.players || {}).map(([name, player]) => `
+          <div class="player-status">
+            <p>${player.avatar || 'P'} ${name} (${player.role})</p>
+            <p>Position: [${player.position[0]}, ${player.position[1]}]</p>
+            <p>Score: ${player.score || 0}</p>
+            ${player.items && player.items.length > 0 ? `
+              <p>Items: ${player.items.map(item => 
+                item.type === 'speed_boost' ? '⚡' : 
+                item.type === 'time_boost' ? '⏰' : 
+                item.type === 'treasure_radar' ? '🔍' : '💥'
+              ).join(' ')}</p>
+            ` : ''}
+          </div>
+        `).join('')}
       `;
     }
-
-    // 初期接続
-    connect();
   </script>
 </body>
 </html> 
