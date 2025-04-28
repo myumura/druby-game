@@ -17,9 +17,9 @@ class GameServer
     puts "Obstacles: #{@obstacles.inspect}"
   end
 
-  def register_player(name, role)
+  def register_player(name, role, avatar)
     return false if @players[name]
-    @players[name] = { role: role, position: [0, 0] }
+    @players[name] = { role: role, position: [0, 0], avatar: avatar }
     broadcast_update
     true
   end

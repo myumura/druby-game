@@ -71,6 +71,18 @@
         <option value="explorer">Explorer</option>
         <option value="engineer">Engineer</option>
       </select>
+      <select id="player-avatar">
+        <option value="👨‍💻">👨‍💻</option>
+        <option value="👩‍💻">👩‍💻</option>
+        <option value="🧙‍♂️">🧙‍♂️</option>
+        <option value="🧙‍♀️">🧙‍♀️</option>
+        <option value="🦸‍♂️">🦸‍♂️</option>
+        <option value="🦸‍♀️">🦸‍♀️</option>
+        <option value="🧜‍♂️">🧜‍♂️</option>
+        <option value="🧜‍♀️">🧜‍♀️</option>
+        <option value="🧚‍♂️">🧚‍♂️</option>
+        <option value="🧚‍♀️">🧚‍♀️</option>
+      </select>
       <button onclick="registerPlayer()">Join Game</button>
     </div>
     <div id="game-map"></div>
@@ -89,6 +101,7 @@
     let ws;
     let playerName = '';
     let playerRole = '';
+    let playerAvatar = '';
 
     function connect() {
       console.log('Attempting to connect to WebSocket...');
@@ -108,6 +121,7 @@
             document.getElementById('controls').style.display = 'block';
             playerName = document.getElementById('player-name').value;
             playerRole = document.getElementById('player-role').value;
+            playerAvatar = document.getElementById('player-avatar').value;
             break;
           case 'register_failed':
             console.log('Registration failed:', data.message);
@@ -132,12 +146,14 @@
     function registerPlayer() {
       const name = document.getElementById('player-name').value;
       const role = document.getElementById('player-role').value;
+      const avatar = document.getElementById('player-avatar').value;
       if (name && role) {
-        console.log('Sending registration request:', { name, role });
+        console.log('Sending registration request:', { name, role, avatar });
         ws.send(JSON.stringify({
           type: 'register',
           name: name,
-          role: role
+          role: role,
+          avatar: avatar
         }));
       }
     }
@@ -162,6 +178,7 @@
         document.getElementById('controls').style.display = 'none';
         playerName = '';
         playerRole = '';
+        playerAvatar = '';
       }
     }
 
@@ -183,7 +200,7 @@
           if (state.players) {
             for (const [name, player] of Object.entries(state.players)) {
               if (player.position[0] === x && player.position[1] === y) {
-                cell.textContent = 'P';
+                cell.textContent = player.avatar || 'P';
                 cell.classList.add('player');
                 isPlayer = true;
                 break;
@@ -226,7 +243,7 @@
         <p>Obstacles cleared: ${gameState.obstacles_cleared || 0}/${gameState.total_obstacles || 0}</p>
         <h3>Players:</h3>
         ${Object.entries(state.players || {}).map(([name, player]) => 
-          `<p>${name} (${player.role}) at position [${player.position[0]}, ${player.position[1]}]</p>`
+          `<p>${player.avatar || 'P'} ${name} (${player.role}) at position [${player.position[0]}, ${player.position[1]}]</p>`
         ).join('')}
       `;
     }

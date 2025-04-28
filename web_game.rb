@@ -64,8 +64,9 @@ class WebGame < Sinatra::Base
         when 'register'
           name = data['name']
           role = data['role']
-          if settings.game_server.register_player(name, role)
-            puts "Player #{name} registered successfully as #{role}"
+          avatar = data['avatar']
+          if settings.game_server.register_player(name, role, avatar)
+            puts "Player #{name} registered successfully as #{role} with avatar #{avatar}"
             ws.send(JSON.generate({
               type: 'register_success',
               role: role
