@@ -237,10 +237,14 @@
       // ステータスの更新
       const status = document.getElementById('status');
       const gameState = state.game_state || {};
+      const isGameClear = gameState.treasures_found === gameState.total_treasures && 
+                        gameState.obstacles_cleared === gameState.total_obstacles;
+      
       status.innerHTML = `
         <h3>Game Progress:</h3>
         <p>Treasures found: ${gameState.treasures_found || 0}/${gameState.total_treasures || 0}</p>
         <p>Obstacles cleared: ${gameState.obstacles_cleared || 0}/${gameState.total_obstacles || 0}</p>
+        ${isGameClear ? '<h2 style="color: gold;">🎉 Game Clear! 🎉</h2>' : ''}
         <h3>Players:</h3>
         ${Object.entries(state.players || {}).map(([name, player]) => 
           `<p>${player.avatar || 'P'} ${name} (${player.role}) at position [${player.position[0]}, ${player.position[1]}]</p>`
