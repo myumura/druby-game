@@ -148,19 +148,12 @@
     };
 
     function connect() {
-      console.log('Attempting to connect to WebSocket...');
       ws = new WebSocket('ws://' + window.location.host + '/websocket');
       
-      ws.onopen = function() {
-        console.log('WebSocket connection established');
-      };
-      
       ws.onmessage = function(event) {
-        console.log('Received message:', event.data);
         const data = JSON.parse(event.data);
         switch(data.type) {
           case 'register_success':
-            console.log('Registration successful');
             document.getElementById('login-form').style.display = 'none';
             document.getElementById('controls').style.display = 'block';
             playerName = document.getElementById('player-name').value;
@@ -168,22 +161,12 @@
             playerAvatar = document.getElementById('player-avatar').value;
             break;
           case 'register_failed':
-            console.log('Registration failed:', data.message);
             alert(data.message);
             break;
           case 'game_state':
-            console.log('Updating game state:', data.state);
             updateGameState(data.state);
             break;
         }
-      };
-
-      ws.onerror = function(error) {
-        console.error('WebSocket error:', error);
-      };
-
-      ws.onclose = function() {
-        console.log('WebSocket connection closed');
       };
     }
 
@@ -192,7 +175,6 @@
       const role = document.getElementById('player-role').value;
       const avatar = document.getElementById('player-avatar').value;
       if (name && role) {
-        console.log('Sending registration request:', { name, role, avatar });
         ws.send(JSON.stringify({
           type: 'register',
           name: name,
@@ -203,7 +185,6 @@
     }
 
     function move(direction) {
-      console.log('Sending move request:', { name: playerName, direction });
       ws.send(JSON.stringify({
         type: 'move',
         name: playerName,
@@ -213,7 +194,6 @@
 
     function resetGame() {
       if (confirm('Are you sure you want to reset the game? All players will be removed.')) {
-        console.log('Sending reset request');
         ws.send(JSON.stringify({
           type: 'reset'
         }));
@@ -236,8 +216,6 @@
     }
 
     function updateGameState(state) {
-      console.log('Updating game state with:', state);
-      
       // マップの更新
       const map = document.getElementById('game-map');
       map.innerHTML = '';

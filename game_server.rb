@@ -17,10 +17,6 @@ class GameServer
     @treasures = generate_treasures
     @obstacles = generate_obstacles
     @special_items = generate_special_items
-    puts "Initial game state:".green
-    puts "Treasures: #{@treasures.inspect}"
-    puts "Obstacles: #{@obstacles.inspect}"
-    puts "Special items: #{@special_items.inspect}"
 
     # タイマースレッドの開始
     @timer_thread = start_timer
@@ -38,7 +34,6 @@ class GameServer
     }
     # 最初のプレイヤーが登録された時にゲームを開始
     if @players.size == 1
-      puts "Starting game with first player: #{name}"
       @game_state[:game_started] = true
       @game_state[:time_remaining] = 300 # タイマーをリセット
       broadcast_update
@@ -67,7 +62,6 @@ class GameServer
     # 障害物のチェック
     @obstacles.each do |obstacle|
       if obstacle[:position] == new_position && !obstacle[:cleared]
-        puts "Cannot move: obstacle at #{new_position}"
         return false
       end
     end
@@ -95,7 +89,6 @@ class GameServer
       treasures: @treasures,
       special_items: @special_items
     }
-    puts "Sending game state: #{state.inspect}"
     state
   end
 
@@ -113,10 +106,6 @@ class GameServer
     @treasures = generate_treasures
     @obstacles = generate_obstacles
     @special_items = generate_special_items
-    puts "Game reset:".green
-    puts "Treasures: #{@treasures.inspect}"
-    puts "Obstacles: #{@obstacles.inspect}"
-    puts "Special items: #{@special_items.inspect}"
     broadcast_update
     true
   end
@@ -124,23 +113,16 @@ class GameServer
   def start_timer
     puts "Starting timer thread..."
     Thread.new do
-      begin
-        while true
-          if @game_state[:game_started] && !@game_state[:game_over]
-            puts "Timer tick: #{@game_state[:time_remaining]} seconds remaining"
-            @game_state[:time_remaining] -= 1
-            if @game_state[:time_remaining] <= 0
-              @game_state[:game_over] = true
-              puts "Game over! Time's up!"
-            end
-            # WebSocketを通じてクライアントに状態を送信
-            broadcast_game_state
+      while true
+        if @game_state[:game_started] && !@game_state[:game_over]
+          @game_state[:time_remaining] -= 1
+          if @game_state[:time_remaining] <= 0
+            @game_state[:game_over] = true
           end
-          sleep 1
+          # WebSocketを通じてクライアントに状態を送信
+          broadcast_game_state
         end
-      rescue => e
-        puts "Timer thread error: #{e.message}"
-        puts e.backtrace
+        sleep 1
       end
     end.tap { |t| t.abort_on_exception = true }
   end
@@ -215,7 +197,6 @@ class GameServer
             treasure[:found] = true
             @game_state[:treasures_found] += 1
             player[:score] += treasure[:value]
-            puts "Treasure found by #{name} at position #{treasure[:position]} (value: #{treasure[:value]})"
           end
         end
       end
@@ -229,7 +210,6 @@ class GameServer
             obstacle[:cleared] = true
             @game_state[:obstacles_cleared] += 1
             player[:score] += 50
-            puts "Obstacle cleared by #{name} at position #{obstacle[:position]}"
           end
         end
       end
@@ -242,7 +222,6 @@ class GameServer
           item[:collected] = true
           player[:items] << item
           player[:score] += 100
-          puts "Special item collected by #{name}: #{item[:type]}"
         end
       end
     end
@@ -250,12 +229,6 @@ class GameServer
 
   def broadcast_update
     # 実際の実装では、ここでクライアントに更新を通知
-    puts "Game state updated:".green
-    puts "Players: #{@players}"
-    puts "Game state: #{@game_state}"
-    puts "Obstacles: #{@obstacles}"
-    puts "Treasures: #{@treasures}"
-    puts "Special items: #{@special_items}"
   end
 end
 
