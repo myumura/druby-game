@@ -10,7 +10,7 @@ class GameServer
       obstacles_cleared: 0,
       total_obstacles: 8,
       time_remaining: 300, # 5分
-      game_started: true,
+      game_started: false, # 最初はfalse
       game_over: false
     }
     @treasures = generate_treasures
@@ -35,24 +35,44 @@ class GameServer
       items: [],
       power_ups: []
     }
-    broadcast_update
+    # 最初のプレイヤーが登録された時にゲームを開始
+    if @players.size == 1
+      puts "Starting game with first player: #{name}"
+      @game_state[:game_started] = true
+      @game_state[:time_remaining] = 300 # タイマーをリセット
+      broadcast_update
+    end
     true
   end
 
   def move_player(name, direction)
     return false unless @players[name]
     
+    # 移動前の位置を保存
+    current_position = @players[name][:position].dup
+    
+    # 移動方向に応じて位置を更新
     case direction
     when 'up'
-      @players[name][:position][1] += 1
+      new_position = [current_position[0], current_position[1] + 1]
     when 'down'
-      @players[name][:position][1] -= 1
+      new_position = [current_position[0], current_position[1] - 1]
     when 'left'
-      @players[name][:position][0] -= 1
+      new_position = [current_position[0] - 1, current_position[1]]
     when 'right'
-      @players[name][:position][0] += 1
+      new_position = [current_position[0] + 1, current_position[1]]
     end
 
+    # 障害物のチェック
+    @obstacles.each do |obstacle|
+      if obstacle[:position] == new_position && !obstacle[:cleared]
+        puts "Cannot move: obstacle at #{new_position}"
+        return false
+      end
+    end
+
+    # 障害物がない場合のみ移動を許可
+    @players[name][:position] = new_position
     check_game_state
     broadcast_update
     true
@@ -101,10 +121,12 @@ class GameServer
   end
 
   def start_timer
+    puts "Starting timer thread..."
     Thread.new do
       loop do
         sleep 1
         if @game_state[:game_started] && !@game_state[:game_over]
+          puts "Timer tick: #{@game_state[:time_remaining]} seconds remaining"
           @game_state[:time_remaining] = [@game_state[:time_remaining] - 1, 0].max
           if @game_state[:time_remaining] <= 0
             @game_state[:game_over] = true
