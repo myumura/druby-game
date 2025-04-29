@@ -1,5 +1,6 @@
 require 'drb/drb'
 require 'colorize'
+require 'json'
 
 class GameServer
   def initialize
@@ -22,7 +23,7 @@ class GameServer
     puts "Special items: #{@special_items.inspect}"
 
     # タイマースレッドの開始
-    start_timer
+    @timer_thread = start_timer
   end
 
   def register_player(name, role, avatar)
@@ -123,19 +124,34 @@ class GameServer
   def start_timer
     puts "Starting timer thread..."
     Thread.new do
-      loop do
-        sleep 1
-        if @game_state[:game_started] && !@game_state[:game_over]
-          puts "Timer tick: #{@game_state[:time_remaining]} seconds remaining"
-          @game_state[:time_remaining] = [@game_state[:time_remaining] - 1, 0].max
-          if @game_state[:time_remaining] <= 0
-            @game_state[:game_over] = true
-            puts "Game over! Time's up!"
+      begin
+        while true
+          if @game_state[:game_started] && !@game_state[:game_over]
+            puts "Timer tick: #{@game_state[:time_remaining]} seconds remaining"
+            @game_state[:time_remaining] -= 1
+            if @game_state[:time_remaining] <= 0
+              @game_state[:game_over] = true
+              puts "Game over! Time's up!"
+            end
+            # WebSocketを通じてクライアントに状態を送信
+            broadcast_game_state
           end
-          broadcast_update
+          sleep 1
         end
+      rescue => e
+        puts "Timer thread error: #{e.message}"
+        puts e.backtrace
       end
-    end
+    end.tap { |t| t.abort_on_exception = true }
+  end
+
+  def broadcast_game_state
+    state = get_game_state
+    message = JSON.generate({
+      type: 'game_state',
+      state: state
+    })
+    broadcast_update
   end
 
   private

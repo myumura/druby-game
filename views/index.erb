@@ -309,7 +309,7 @@
       
       status.innerHTML = `
         <h3>Game Progress:</h3>
-        <p>Time remaining: ${formatTime(gameState.time_remaining)}</p>
+        <p>Time remaining: <span style="font-size: 1.2em; font-weight: bold;">${formatTime(gameState.time_remaining)}</span></p>
         <p>Treasures found: ${gameState.treasures_found || 0}/${gameState.total_treasures || 0}</p>
         <p>Obstacles cleared: ${gameState.obstacles_cleared || 0}/${gameState.total_obstacles || 0}</p>
         ${isGameClear ? '<h2 style="color: gold;">🎉 Game Clear! 🎉</h2>' : ''}
