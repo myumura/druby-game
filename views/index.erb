@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>DRuby Cooperative Game</title>
+  <title>DRuby Asymmetric Game</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -19,8 +19,8 @@
     }
     #game-map {
       display: grid;
-      grid-template-columns: repeat(21, 30px);
-      grid-template-rows: repeat(21, 30px);
+      grid-template-columns: repeat(17, 30px);
+      grid-template-rows: repeat(17, 30px);
       gap: 1px;
       background-color: #ddd;
       padding: 10px;
@@ -36,17 +36,17 @@
       font-weight: bold;
       font-size: 20px;
     }
-    .player {
+    .hunter {
+      color: red;
+    }
+    .survivor {
       color: green;
     }
-    .treasure {
+    .key {
       color: gold;
     }
-    .obstacle {
-      color: #666;
-    }
-    .special-item {
-      color: #ff6b6b;
+    .escape {
+      color: blue;
     }
     #controls {
       margin-top: 20px;
@@ -99,28 +99,41 @@
     #login-form button:hover {
       background-color: #1976D2;
     }
+    .game-over {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      z-index: 1000;
+    }
   </style>
 </head>
 <body>
   <div id="game-container">
-    <h1>DRuby Cooperative Game</h1>
+    <h1>DRuby Asymmetric Game</h1>
     <div id="login-form">
       <input type="text" id="player-name" placeholder="Enter your name">
       <select id="player-role">
-        <option value="explorer">Explorer</option>
-        <option value="engineer">Engineer</option>
+        <option value="hunter">Hunter</option>
+        <option value="survivor">Survivor</option>
       </select>
       <select id="player-avatar">
-        <option value="👨‍💻">👨‍💻</option>
-        <option value="👩‍💻">👩‍💻</option>
-        <option value="🧙‍♂️">🧙‍♂️</option>
-        <option value="🧙‍♀️">🧙‍♀️</option>
-        <option value="🦸‍♂️">🦸‍♂️</option>
-        <option value="🦸‍♀️">🦸‍♀️</option>
-        <option value="🧜‍♂️">🧜‍♂️</option>
-        <option value="🧜‍♀️">🧜‍♀️</option>
-        <option value="🧚‍♂️">🧚‍♂️</option>
-        <option value="🧚‍♀️">🧚‍♀️</option>
+        <option value="👻">👻</option>
+        <option value="👽">👽</option>
+        <option value="🤖">🤖</option>
+        <option value="👾">👾</option>
+        <option value="🎃">🎃</option>
+        <option value="🧟">🧟</option>
+        <option value="🧟‍♂️">🧟‍♂️</option>
+        <option value="🧟‍♀️">🧟‍♀️</option>
+        <option value="🧛">🧛</option>
+        <option value="🧛‍♂️">🧛‍♂️</option>
+        <option value="🧛‍♀️">🧛‍♀️</option>
       </select>
       <button onclick="registerPlayer()">Join Game</button>
     </div>
@@ -197,118 +210,111 @@
         ws.send(JSON.stringify({
           type: 'reset'
         }));
-        // ログインフォームを表示
-        document.getElementById('login-form').style.display = 'block';
+        document.getElementById('login-form').style.display = 'flex';
         document.getElementById('controls').style.display = 'none';
-        playerName = '';
-        playerRole = '';
-        playerAvatar = '';
+        // ゲームオーバーポップアップを削除
+        const gameOver = document.querySelector('.game-over');
+        if (gameOver) {
+          gameOver.remove();
+        }
       }
-    }
-
-    function formatTime(seconds) {
-      if (isNaN(seconds) || seconds < 0) {
-        return '0:00';
-      }
-      const minutes = Math.floor(seconds / 60);
-      const remainingSeconds = seconds % 60;
-      return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
     }
 
     function updateGameState(state) {
       // マップの更新
-      const map = document.getElementById('game-map');
-      map.innerHTML = '';
-      
+      const gameMap = document.getElementById('game-map');
+      gameMap.innerHTML = '';
+
       // マップの生成
-      for (let y = 10; y >= -10; y--) {
-        for (let x = -10; x <= 10; x++) {
+      for (let y = 8; y >= -8; y--) {
+        for (let x = -8; x <= 8; x++) {
           const cell = document.createElement('div');
           cell.className = 'cell';
           
-          // プレイヤーの表示
-          let isPlayer = false;
-          if (state.players) {
+          // 脱出地点
+          if (state.escape_point[0] === x && state.escape_point[1] === y) {
+            cell.textContent = 'E';
+            cell.classList.add('escape');
+          }
+          // 鍵
+          else if (state.keys.some(key => key.position[0] === x && key.position[1] === y && !key.found)) {
+            cell.textContent = 'K';
+            cell.classList.add('key');
+          }
+          // プレイヤー
+          else {
+            let playerFound = false;
             for (const [name, player] of Object.entries(state.players)) {
               if (player.position[0] === x && player.position[1] === y) {
-                cell.textContent = player.avatar || 'P';
-                cell.classList.add('player');
-                isPlayer = true;
+                cell.textContent = player.avatar;
+                cell.classList.add(player.role);
+                playerFound = true;
                 break;
               }
+            }
+            if (!playerFound) {
+              cell.textContent = '.';
             }
           }
           
-          // 宝の表示
-          if (!isPlayer && state.treasures) {
-            for (const treasure of state.treasures) {
-              if (treasure.position[0] === x && treasure.position[1] === y && !treasure.found) {
-                cell.textContent = '💎';
-                cell.classList.add('treasure');
-                break;
-              }
-            }
-          }
-          
-          // 障害物の表示
-          if (!isPlayer && state.obstacles) {
-            for (const obstacle of state.obstacles) {
-              if (obstacle.position[0] === x && obstacle.position[1] === y && !obstacle.cleared) {
-                cell.textContent = obstacle.type === 'rock' ? '🪨' : obstacle.type === 'tree' ? '🌳' : '💧';
-                cell.classList.add('obstacle');
-                break;
-              }
-            }
-          }
-
-          // 特殊アイテムの表示
-          if (!isPlayer && state.special_items) {
-            for (const item of state.special_items) {
-              if (item.position[0] === x && item.position[1] === y && !item.collected) {
-                cell.textContent = item.type === 'speed_boost' ? '⚡' : 
-                                 item.type === 'time_boost' ? '⏰' : 
-                                 item.type === 'treasure_radar' ? '🔍' : '💥';
-                cell.classList.add('special-item');
-                break;
-              }
-            }
-          }
-          
-          map.appendChild(cell);
+          gameMap.appendChild(cell);
         }
       }
-      
+
       // ステータスの更新
       const status = document.getElementById('status');
-      const gameState = state.game_state || {};
-      const isGameClear = gameState.treasures_found === gameState.total_treasures && 
-                        gameState.obstacles_cleared === gameState.total_obstacles;
-      const isGameOver = gameState.game_over;
-      
       status.innerHTML = `
-        <h3>Game Progress:</h3>
-        <p>Time remaining: <span style="font-size: 1.2em; font-weight: bold;">${formatTime(gameState.time_remaining)}</span></p>
-        <p>Treasures found: ${gameState.treasures_found || 0}/${gameState.total_treasures || 0}</p>
-        <p>Obstacles cleared: ${gameState.obstacles_cleared || 0}/${gameState.total_obstacles || 0}</p>
-        ${isGameClear ? '<h2 style="color: gold;">🎉 Game Clear! 🎉</h2>' : ''}
-        ${isGameOver ? '<h2 style="color: red;">⏰ Game Over! Time is up! ⏰</h2>' : ''}
-        <h3>Players:</h3>
-        ${Object.entries(state.players || {}).map(([name, player]) => `
+        <h3>Game Status</h3>
+        <p>Time remaining: ${state.game_state.time_remaining} seconds</p>
+        <p>Keys found: ${state.game_state.keys_found}/${state.game_state.total_keys}</p>
+        <h3>Players</h3>
+        ${Object.entries(state.players).map(([name, player]) => `
           <div class="player-status">
-            <p>${player.avatar || 'P'} ${name} (${player.role})</p>
-            <p>Position: [${player.position[0]}, ${player.position[1]}]</p>
-            <p>Score: ${player.score || 0}</p>
-            ${player.items && player.items.length > 0 ? `
-              <p>Items: ${player.items.map(item => 
-                item.type === 'speed_boost' ? '⚡' : 
-                item.type === 'time_boost' ? '⏰' : 
-                item.type === 'treasure_radar' ? '🔍' : '💥'
-              ).join(' ')}</p>
-            ` : ''}
+            <p>${name} (${player.role}) ${player.avatar}</p>
+            <p>Status: ${player.caught ? 'Caught' : player.escaped ? 'Escaped' : 'Active'}</p>
+            ${player.role === 'survivor' ? `<p>Keys collected: ${player.keys_collected}</p>` : ''}
           </div>
         `).join('')}
       `;
+
+      // ゲームオーバー時の表示
+      if (state.game_state.game_over) {
+        // 既存のゲームオーバーポップアップを削除
+        const existingGameOver = document.querySelector('.game-over');
+        if (existingGameOver) {
+          existingGameOver.remove();
+        }
+        
+        const gameOver = document.createElement('div');
+        gameOver.className = 'game-over';
+        gameOver.innerHTML = `
+          <h2>Game Over!</h2>
+          <p>Winner: ${state.game_state.winner}</p>
+          <button onclick="resetGame()">Play Again</button>
+        `;
+        document.body.appendChild(gameOver);
+      }
     }
+
+    // キーボード操作の追加
+    document.addEventListener('keydown', function(event) {
+      if (document.getElementById('controls').style.display === 'none') return;
+      
+      switch(event.key) {
+        case 'ArrowUp':
+          move('up');
+          break;
+        case 'ArrowDown':
+          move('down');
+          break;
+        case 'ArrowLeft':
+          move('left');
+          break;
+        case 'ArrowRight':
+          move('right');
+          break;
+      }
+    });
   </script>
 </body>
 </html> 

@@ -17,16 +17,15 @@ class WebGame < Sinatra::Base
       state: {
         players: state[:players] || {},
         game_state: {
-          treasures_found: state[:game_state][:treasures_found] || 0,
-          total_treasures: state[:game_state][:total_treasures] || 0,
-          obstacles_cleared: state[:game_state][:obstacles_cleared] || 0,
-          total_obstacles: state[:game_state][:total_obstacles] || 0,
+          keys_found: state[:game_state][:keys_found] || 0,
+          total_keys: state[:game_state][:total_keys] || 0,
           time_remaining: state[:game_state][:time_remaining] || 0,
           game_started: state[:game_state][:game_started] || false,
-          game_over: state[:game_state][:game_over] || false
+          game_over: state[:game_state][:game_over] || false,
+          winner: state[:game_state][:winner] || nil
         },
-        obstacles: state[:obstacles] || [],
-        treasures: state[:treasures] || []
+        keys: state[:keys] || [],
+        escape_point: state[:escape_point] || [8, 8]
       }
     })
     settings.sockets.each do |socket|
