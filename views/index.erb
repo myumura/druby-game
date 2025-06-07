@@ -35,18 +35,38 @@
       justify-content: center;
       font-weight: bold;
       font-size: 20px;
+      transition: all 0.3s;
+      border: 1px solid #ddd;
     }
     .hunter {
       color: red;
+      text-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
     }
     .survivor {
       color: green;
+      text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
     }
     .key {
       color: gold;
+      text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
     }
     .escape {
       color: blue;
+      text-shadow: 0 0 5px rgba(0, 0, 255, 0.5);
+    }
+    .wall {
+      background-color: #666;
+      color: white;
+      text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+    }
+    .fog {
+      background-color: #000;
+      color: transparent;
+      border: 1px solid #333;
+    }
+    .cell:hover {
+      transform: scale(1.1);
+      z-index: 1;
     }
     #controls {
       margin-top: 20px;
@@ -123,17 +143,17 @@
         <option value="survivor">Survivor</option>
       </select>
       <select id="player-avatar">
-        <option value="👻">👻</option>
-        <option value="👽">👽</option>
-        <option value="🤖">🤖</option>
-        <option value="👾">👾</option>
-        <option value="🎃">🎃</option>
-        <option value="🧟">🧟</option>
-        <option value="🧟‍♂️">🧟‍♂️</option>
-        <option value="🧟‍♀️">🧟‍♀️</option>
-        <option value="🧛">🧛</option>
-        <option value="🧛‍♂️">🧛‍♂️</option>
-        <option value="🧛‍♀️">🧛‍♀️</option>
+        <option value="👻">👻 Hunter</option>
+        <option value="🧟">🧟 Survivor</option>
+        <option value="👽">👽 Alien</option>
+        <option value="🤖">🤖 Robot</option>
+        <option value="👾">👾 Ghost</option>
+        <option value="🎃">🎃 Pumpkin</option>
+        <option value="🧟‍♂️">🧟‍♂️ Zombie</option>
+        <option value="🧟‍♀️">🧟‍♀️ Zombie</option>
+        <option value="🧛">🧛 Vampire</option>
+        <option value="🧛‍♂️">🧛‍♂️ Vampire</option>
+        <option value="🧛‍♀️">🧛‍♀️ Vampire</option>
       </select>
       <button onclick="registerPlayer()">Join Game</button>
     </div>
@@ -225,16 +245,34 @@
       const gameMap = document.getElementById('game-map');
       gameMap.innerHTML = '';
 
+      // プレイヤーの位置を取得
+      const currentPlayer = state.players[playerName];
+      if (!currentPlayer) return;
+
       // マップの生成
       for (let y = 8; y >= -8; y--) {
         for (let x = -8; x <= 8; x++) {
           const cell = document.createElement('div');
           cell.className = 'cell';
           
+          // 視界の範囲を計算
+          const isVisible = isInRange(currentPlayer.position, [x, y], currentPlayer.role);
+          
+          if (!isVisible) {
+            cell.classList.add('fog');
+            gameMap.appendChild(cell);
+            continue;
+          }
+
           // 脱出地点
           if (state.escape_point[0] === x && state.escape_point[1] === y) {
             cell.textContent = 'E';
             cell.classList.add('escape');
+          }
+          // 障害物
+          else if (state.obstacles.some(obs => obs.position[0] === x && obs.position[1] === y)) {
+            cell.textContent = '█';
+            cell.classList.add('wall');
           }
           // 鍵
           else if (state.keys.some(key => key.position[0] === x && key.position[1] === y && !key.found)) {
@@ -246,7 +284,9 @@
             let playerFound = false;
             for (const [name, player] of Object.entries(state.players)) {
               if (player.position[0] === x && player.position[1] === y) {
-                cell.textContent = player.avatar;
+                console.log('Player found:', name, player); // デバッグ情報
+                const avatar = player.avatar || (player.role === 'hunter' ? '👻' : '🧟');
+                cell.textContent = avatar;
                 cell.classList.add(player.role);
                 playerFound = true;
                 break;
@@ -294,6 +334,14 @@
         `;
         document.body.appendChild(gameOver);
       }
+    }
+
+    // 視界の範囲を計算する関数
+    function isInRange(playerPos, targetPos, role) {
+      const range = role === 'hunter' ? 3 : 2; // 鬼は視界が広い
+      const dx = Math.abs(playerPos[0] - targetPos[0]);
+      const dy = Math.abs(playerPos[1] - targetPos[1]);
+      return dx <= range && dy <= range;
     }
 
     // キーボード操作の追加

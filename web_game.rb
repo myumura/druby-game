@@ -25,6 +25,7 @@ class WebGame < Sinatra::Base
           winner: state[:game_state][:winner] || nil
         },
         keys: state[:keys] || [],
+        obstacles: state[:obstacles] || [],
         escape_point: state[:escape_point] || [8, 8]
       }
     })

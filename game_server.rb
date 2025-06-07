@@ -13,8 +13,9 @@ class GameServer
       game_over: false,
       winner: nil
     }
+    @escape_point = generate_escape_point # 脱出地点を先に生成
+    @obstacles = generate_obstacles
     @keys = generate_keys
-    @escape_point = [8, 8] # 脱出地点
 
     # タイマースレッドの開始
     @timer_thread = start_timer
@@ -59,6 +60,9 @@ class GameServer
     # 移動範囲の制限
     return false if new_position[0].abs > 8 || new_position[1].abs > 8
 
+    # 障害物のチェック
+    return false if @obstacles.any? { |obs| obs[:position] == new_position }
+
     @players[name][:position] = new_position
     check_game_state
     broadcast_update
@@ -77,6 +81,7 @@ class GameServer
         winner: @game_state[:winner]
       },
       keys: @keys,
+      obstacles: @obstacles,
       escape_point: @escape_point
     }
     state
@@ -92,6 +97,8 @@ class GameServer
       game_over: false,
       winner: nil
     }
+    @escape_point = generate_escape_point # 脱出地点を先に生成
+    @obstacles = generate_obstacles
     @keys = generate_keys
     broadcast_update
     true
@@ -125,6 +132,37 @@ class GameServer
 
   private
 
+  def generate_escape_point
+    # 外周の位置からランダムに選択（角を除く）
+    positions = []
+    (-7..7).each do |x|
+      positions << [x, 7]  # 上辺
+      positions << [x, -7] # 下辺
+      positions << [7, x]  # 右辺
+      positions << [-7, x] # 左辺
+    end
+    positions.sample
+  end
+
+  def generate_obstacles
+    obstacles = []
+    # 壁の生成
+    (-8..8).each do |x|
+      (-8..8).each do |y|
+        # 外周の壁
+        if x.abs == 8 || y.abs == 8
+          obstacles << { position: [x, y], type: 'wall' }
+        # ランダムな内部の壁（脱出地点の周りは障害物を配置しない）
+        elsif rand < 0.1 && (x.abs < 7 && y.abs < 7)
+          # 脱出地点の周り3マス以内には障害物を配置しない
+          next if (@escape_point[0] - x).abs <= 3 && (@escape_point[1] - y).abs <= 3
+          obstacles << { position: [x, y], type: 'wall' }
+        end
+      end
+    end
+    obstacles
+  end
+
   def generate_keys
     keys = []
     while keys.size < @game_state[:total_keys]
@@ -132,6 +170,7 @@ class GameServer
       y = rand(-8..8)
       next if keys.any? { |k| k[:position] == [x, y] }
       next if [x, y] == @escape_point
+      next if @obstacles.any? { |obs| obs[:position] == [x, y] }
       keys << { position: [x, y], found: false }
     end
     keys
