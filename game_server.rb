@@ -6,17 +6,15 @@ class GameServer
   def initialize
     @players = {}
     @game_state = {
-      treasures_found: 0,
-      total_treasures: 5,
-      obstacles_cleared: 0,
-      total_obstacles: 8,
+      keys_found: 0,
+      total_keys: 3,
       time_remaining: 300, # 5分
-      game_started: false, # 最初はfalse
-      game_over: false
+      game_started: false,
+      game_over: false,
+      winner: nil
     }
-    @treasures = generate_treasures
-    @obstacles = generate_obstacles
-    @special_items = generate_special_items
+    @keys = generate_keys
+    @escape_point = [8, 8] # 脱出地点
 
     # タイマースレッドの開始
     @timer_thread = start_timer
@@ -28,14 +26,14 @@ class GameServer
       role: role, 
       position: [0, 0], 
       avatar: avatar,
-      score: 0,
-      items: [],
-      power_ups: []
+      caught: false,
+      escaped: false,
+      keys_collected: 0
     }
     # 最初のプレイヤーが登録された時にゲームを開始
     if @players.size == 1
       @game_state[:game_started] = true
-      @game_state[:time_remaining] = 300 # タイマーをリセット
+      @game_state[:time_remaining] = 300
       broadcast_update
     end
     true
@@ -43,11 +41,10 @@ class GameServer
 
   def move_player(name, direction)
     return false unless @players[name]
+    return false if @players[name][:caught] || @players[name][:escaped]
     
-    # 移動前の位置を保存
     current_position = @players[name][:position].dup
     
-    # 移動方向に応じて位置を更新
     case direction
     when 'up'
       new_position = [current_position[0], current_position[1] + 1]
@@ -59,14 +56,9 @@ class GameServer
       new_position = [current_position[0] + 1, current_position[1]]
     end
 
-    # 障害物のチェック
-    @obstacles.each do |obstacle|
-      if obstacle[:position] == new_position && !obstacle[:cleared]
-        return false
-      end
-    end
+    # 移動範囲の制限
+    return false if new_position[0].abs > 8 || new_position[1].abs > 8
 
-    # 障害物がない場合のみ移動を許可
     @players[name][:position] = new_position
     check_game_state
     broadcast_update
@@ -77,17 +69,15 @@ class GameServer
     state = {
       players: @players,
       game_state: {
-        treasures_found: @game_state[:treasures_found],
-        total_treasures: @game_state[:total_treasures],
-        obstacles_cleared: @game_state[:obstacles_cleared],
-        total_obstacles: @game_state[:total_obstacles],
+        keys_found: @game_state[:keys_found],
+        total_keys: @game_state[:total_keys],
         time_remaining: @game_state[:time_remaining],
         game_started: @game_state[:game_started],
-        game_over: @game_state[:game_over]
+        game_over: @game_state[:game_over],
+        winner: @game_state[:winner]
       },
-      obstacles: @obstacles,
-      treasures: @treasures,
-      special_items: @special_items
+      keys: @keys,
+      escape_point: @escape_point
     }
     state
   end
@@ -95,17 +85,14 @@ class GameServer
   def reset
     @players = {}
     @game_state = {
-      treasures_found: 0,
-      total_treasures: 5,
-      obstacles_cleared: 0,
-      total_obstacles: 8,
+      keys_found: 0,
+      total_keys: 3,
       time_remaining: 300,
       game_started: false,
-      game_over: false
+      game_over: false,
+      winner: nil
     }
-    @treasures = generate_treasures
-    @obstacles = generate_obstacles
-    @special_items = generate_special_items
+    @keys = generate_keys
     broadcast_update
     true
   end
@@ -118,8 +105,8 @@ class GameServer
           @game_state[:time_remaining] -= 1
           if @game_state[:time_remaining] <= 0
             @game_state[:game_over] = true
+            @game_state[:winner] = 'hunter'
           end
-          # WebSocketを通じてクライアントに状態を送信
           broadcast_game_state
         end
         sleep 1
@@ -138,92 +125,64 @@ class GameServer
 
   private
 
-  def generate_treasures
-    treasures = []
-    while treasures.size < @game_state[:total_treasures]
+  def generate_keys
+    keys = []
+    while keys.size < @game_state[:total_keys]
       x = rand(-8..8)
       y = rand(-8..8)
-      # 他の宝と重ならないようにする
-      next if treasures.any? { |t| t[:position] == [x, y] }
-      treasures << { position: [x, y], found: false, value: rand(100..500) }
+      next if keys.any? { |k| k[:position] == [x, y] }
+      next if [x, y] == @escape_point
+      keys << { position: [x, y], found: false }
     end
-    treasures
-  end
-
-  def generate_obstacles
-    obstacles = []
-    while obstacles.size < @game_state[:total_obstacles]
-      x = rand(-8..8)
-      y = rand(-8..8)
-      # 宝の位置と重ならないようにする
-      next if @treasures.any? { |t| t[:position] == [x, y] }
-      # 他の障害物と重ならないようにする
-      next if obstacles.any? { |obs| obs[:position] == [x, y] }
-      obstacles << { position: [x, y], cleared: false, type: ['rock', 'tree', 'water'].sample }
-    end
-    obstacles
-  end
-
-  def generate_special_items
-    items = []
-    item_types = [
-      { type: 'speed_boost', duration: 10, effect: 'Move twice as fast' },
-      { type: 'time_boost', duration: 30, effect: 'Add 30 seconds to the timer' },
-      { type: 'treasure_radar', duration: 15, effect: 'See all treasures on the map' },
-      { type: 'obstacle_breaker', duration: 1, effect: 'Clear all obstacles in a 3x3 area' }
-    ]
-    
-    5.times do
-      x = rand(-8..8)
-      y = rand(-8..8)
-      # 他のアイテムと重ならないようにする
-      next if items.any? { |i| i[:position] == [x, y] }
-      # 宝や障害物と重ならないようにする
-      next if @treasures.any? { |t| t[:position] == [x, y] }
-      next if @obstacles.any? { |o| o[:position] == [x, y] }
-      
-      item = item_types.sample.merge(position: [x, y], collected: false)
-      items << item
-    end
-    items
+    keys
   end
 
   def check_game_state
-    # プレイヤーが宝の位置にいるかチェック
+    # 鍵の収集チェック
     @players.each do |name, player|
-      if player[:role] == 'explorer'
-        @treasures.each do |treasure|
-          if treasure[:position] == player[:position] && !treasure[:found]
-            treasure[:found] = true
-            @game_state[:treasures_found] += 1
-            player[:score] += treasure[:value]
-          end
+      next if player[:role] != 'survivor' || player[:caught] || player[:escaped]
+      
+      @keys.each do |key|
+        if key[:position] == player[:position] && !key[:found]
+          key[:found] = true
+          player[:keys_collected] += 1
+          @game_state[:keys_found] += 1
         end
+      end
+
+      # 脱出チェック
+      if player[:position] == @escape_point && player[:keys_collected] >= 3
+        player[:escaped] = true
+        check_win_condition
       end
     end
 
-    # 障害物がクリアされたかチェック
-    @players.each do |name, player|
-      if player[:role] == 'engineer'
-        @obstacles.each do |obstacle|
-          if obstacle[:position] == player[:position] && !obstacle[:cleared]
-            obstacle[:cleared] = true
-            @game_state[:obstacles_cleared] += 1
-            player[:score] += 50
-          end
+    # 鬼が捕まえたかチェック
+    @players.each do |hunter_name, hunter|
+      next if hunter[:role] != 'hunter'
+      
+      @players.each do |survivor_name, survivor|
+        next if survivor[:role] != 'survivor' || survivor[:caught] || survivor[:escaped]
+        
+        if hunter[:position] == survivor[:position]
+          survivor[:caught] = true
+          check_win_condition
         end
       end
     end
+  end
 
-    # 特殊アイテムの取得をチェック
-    @players.each do |name, player|
-      @special_items.each do |item|
-        if item[:position] == player[:position] && !item[:collected]
-          item[:collected] = true
-          player[:items] << item
-          player[:score] += 100
-        end
-      end
+  def check_win_condition
+    survivors = @players.select { |_, p| p[:role] == 'survivor' }
+    escaped = survivors.count { |_, p| p[:escaped] }
+    caught = survivors.count { |_, p| p[:caught] }
+    
+    if escaped > 0
+      @game_state[:game_over] = true
+      @game_state[:winner] = 'survivors'
+    elsif caught == survivors.size
+      @game_state[:game_over] = true
+      @game_state[:winner] = 'hunter'
     end
   end
 
