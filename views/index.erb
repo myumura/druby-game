@@ -7,7 +7,7 @@
       font-family: Arial, sans-serif;
       margin: 0;
       padding: 20px;
-      background-color: #f0f0f0;
+      background-color: white;
     }
     #game-container {
       max-width: 800px;
@@ -22,9 +22,10 @@
       grid-template-columns: repeat(17, 30px);
       grid-template-rows: repeat(17, 30px);
       gap: 1px;
-      background-color: #ddd;
+      background-color: white;
       padding: 10px;
-      margin: 20px 0;
+      margin: 20px auto;
+      width: fit-content;
     }
     .cell {
       width: 30px;
@@ -288,7 +289,7 @@
 
           // 脱出地点
           if (state.escape_point[0] === x && state.escape_point[1] === y) {
-            cell.textContent = 'E';
+            cell.textContent = '🚪';
             cell.classList.add('escape');
           }
           // 障害物
@@ -298,7 +299,7 @@
           }
           // 鍵
           else if (state.keys.some(key => key.position[0] === x && key.position[1] === y && !key.found)) {
-            cell.textContent = 'K';
+            cell.textContent = '🔑';
             cell.classList.add('key');
           }
           // プレイヤー
