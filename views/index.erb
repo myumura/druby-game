@@ -143,17 +143,33 @@
         <option value="survivor">Survivor</option>
       </select>
       <select id="player-avatar">
-        <option value="👻">👻 Hunter</option>
-        <option value="🧟">🧟 Survivor</option>
-        <option value="👽">👽 Alien</option>
-        <option value="🤖">🤖 Robot</option>
-        <option value="👾">👾 Ghost</option>
-        <option value="🎃">🎃 Pumpkin</option>
-        <option value="🧟‍♂️">🧟‍♂️ Zombie</option>
-        <option value="🧟‍♀️">🧟‍♀️ Zombie</option>
-        <option value="🧛">🧛 Vampire</option>
-        <option value="🧛‍♂️">🧛‍♂️ Vampire</option>
-        <option value="🧛‍♀️">🧛‍♀️ Vampire</option>
+        <optgroup label="Hunter">
+          <option value="👻">👻 Ghost</option>
+          <option value="🧟">🧟 Zombie</option>
+          <option value="🧛">🧛 Vampire</option>
+          <option value="🧛‍♂️">🧛‍♂️ Vampire</option>
+          <option value="🧛‍♀️">🧛‍♀️ Vampire</option>
+          <option value="👹">👹 Ogre</option>
+          <option value="👺">👺 Goblin</option>
+          <option value="🤡">🤡 Clown</option>
+        </optgroup>
+        <optgroup label="Survivor">
+          <option value="🧑">🧑 Person</option>
+          <option value="👨">👨 Man</option>
+          <option value="👩">👩 Woman</option>
+          <option value="🧑‍🦰">🧑‍🦰 Person with Red Hair</option>
+          <option value="🧑‍🦱">🧑‍🦱 Person with Curly Hair</option>
+          <option value="🧑‍🦳">🧑‍🦳 Person with White Hair</option>
+          <option value="🧑‍🦲">🧑‍🦲 Person with No Hair</option>
+          <option value="👨‍🦰">👨‍🦰 Man with Red Hair</option>
+          <option value="👩‍🦰">👩‍🦰 Woman with Red Hair</option>
+          <option value="👨‍🦱">👨‍🦱 Man with Curly Hair</option>
+          <option value="👩‍🦱">👩‍🦱 Woman with Curly Hair</option>
+          <option value="👨‍🦳">👨‍🦳 Man with White Hair</option>
+          <option value="👩‍🦳">👩‍🦳 Woman with White Hair</option>
+          <option value="👨‍🦲">👨‍🦲 Man with No Hair</option>
+          <option value="👩‍🦲">👩‍🦲 Woman with No Hair</option>
+        </optgroup>
       </select>
       <button onclick="registerPlayer()">Join Game</button>
     </div>
@@ -187,7 +203,6 @@
         const data = JSON.parse(event.data);
         switch(data.type) {
           case 'register_success':
-            document.getElementById('login-form').style.display = 'none';
             document.getElementById('controls').style.display = 'block';
             playerName = document.getElementById('player-name').value;
             playerRole = document.getElementById('player-role').value;
@@ -226,18 +241,25 @@
     }
 
     function resetGame() {
-      if (confirm('Are you sure you want to reset the game? All players will be removed.')) {
-        ws.send(JSON.stringify({
-          type: 'reset'
-        }));
-        document.getElementById('login-form').style.display = 'flex';
-        document.getElementById('controls').style.display = 'none';
-        // ゲームオーバーポップアップを削除
-        const gameOver = document.querySelector('.game-over');
-        if (gameOver) {
-          gameOver.remove();
-        }
+      // ゲームオーバーポップアップを削除
+      const gameOver = document.querySelector('.game-over');
+      if (gameOver) {
+        gameOver.remove();
       }
+      
+      ws.send(JSON.stringify({
+        type: 'reset'
+      }));
+      document.getElementById('controls').style.display = 'none';
+      
+      // ステータス情報をリセット
+      const status = document.getElementById('status');
+      status.innerHTML = `
+        <h3>Game Status</h3>
+        <p>Time remaining: 300 seconds</p>
+        <p>Keys found: 0/3</p>
+        <h3>Players</h3>
+      `;
     }
 
     function updateGameState(state) {
@@ -284,9 +306,7 @@
             let playerFound = false;
             for (const [name, player] of Object.entries(state.players)) {
               if (player.position[0] === x && player.position[1] === y) {
-                console.log('Player found:', name, player); // デバッグ情報
-                const avatar = player.avatar || (player.role === 'hunter' ? '👻' : '🧟');
-                cell.textContent = avatar;
+                cell.textContent = player.avatar || (player.role === 'hunter' ? '👻' : '🧟');
                 cell.classList.add(player.role);
                 playerFound = true;
                 break;
@@ -319,20 +339,17 @@
 
       // ゲームオーバー時の表示
       if (state.game_state.game_over) {
-        // 既存のゲームオーバーポップアップを削除
         const existingGameOver = document.querySelector('.game-over');
-        if (existingGameOver) {
-          existingGameOver.remove();
+        if (!existingGameOver) {
+          const gameOver = document.createElement('div');
+          gameOver.className = 'game-over';
+          gameOver.innerHTML = `
+            <h2>Game Over!</h2>
+            <p>Winner: ${state.game_state.winner}</p>
+            <button onclick="resetGame()">Play Again</button>
+          `;
+          document.body.appendChild(gameOver);
         }
-        
-        const gameOver = document.createElement('div');
-        gameOver.className = 'game-over';
-        gameOver.innerHTML = `
-          <h2>Game Over!</h2>
-          <p>Winner: ${state.game_state.winner}</p>
-          <button onclick="resetGame()">Play Again</button>
-        `;
-        document.body.appendChild(gameOver);
       }
     }
 
