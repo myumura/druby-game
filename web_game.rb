@@ -73,6 +73,13 @@ class WebGame < Sinatra::Base
           position = data['position']
           rotation = data['rotation']
           settings.game_server.move_player(name, position, rotation)
+        when 'collect_key'
+          name = data['name']
+          key_id = data['key_id']
+          settings.game_server.collect_key(name, key_id)
+        when 'escape'
+          name = data['name']
+          settings.game_server.escape(name)
         when 'reset'
           settings.game_server.reset
         end

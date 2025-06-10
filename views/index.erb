@@ -176,44 +176,115 @@
       camera.rotation.y = player.rotation.y;
     }
 
-    // プレイヤーの移動
+    // プレイヤーの移動を更新
     function updatePlayerPosition() {
-      console.log('Current keys state:', keys);
-      console.log('Current player position:', player.position);
-      console.log('Current player rotation:', player.rotation);
-      
-      // 移動の計算
+      const moveSpeed = 0.1;
+      const rotateSpeed = 0.05;
+      const playerRadius = 0.2; // プレイヤーの半径
+
+      // 前回の位置を保存
+      const previousPosition = { ...player.position };
+      const previousRotation = { ...player.rotation };
+
+      // 移動と回転の処理
       if (keys['up']) {
-        player.position.x += Math.sin(player.rotation.y) * player.speed;
-        player.position.z += Math.cos(player.rotation.y) * player.speed;
-        console.log('Moving forward');
+        player.position.x += Math.sin(player.rotation.y) * moveSpeed;
+        player.position.z += Math.cos(player.rotation.y) * moveSpeed;
       }
       if (keys['down']) {
-        player.position.x -= Math.sin(player.rotation.y) * player.speed;
-        player.position.z -= Math.cos(player.rotation.y) * player.speed;
-        console.log('Moving backward');
+        player.position.x -= Math.sin(player.rotation.y) * moveSpeed;
+        player.position.z -= Math.cos(player.rotation.y) * moveSpeed;
       }
       if (keys['left']) {
-        player.rotation.y += player.turnSpeed;
-        console.log('Turning left');
+        player.rotation.y += rotateSpeed;
       }
       if (keys['right']) {
-        player.rotation.y -= player.turnSpeed;
-        console.log('Turning right');
+        player.rotation.y -= rotateSpeed;
+      }
+
+      // 壁との衝突判定
+      let collision = false;
+      gameState.obstacles.forEach(obs => {
+        const dx = player.position.x - obs.position[0];
+        const dz = player.position.z - obs.position[1];
+        const distance = Math.sqrt(dx * dx + dz * dz);
+        
+        // 壁との距離が一定以下なら衝突
+        if (distance < playerRadius + 0.5) {
+          collision = true;
+        }
+      });
+
+      // 外壁との衝突判定
+      const boundarySize = 8;
+      if (Math.abs(player.position.x) > boundarySize - playerRadius || 
+          Math.abs(player.position.z) > boundarySize - playerRadius) {
+        collision = true;
+      }
+
+      // 衝突した場合は前回の位置に戻す
+      if (collision) {
+        player.position = previousPosition;
+        player.rotation = previousRotation;
       }
 
       // カメラの位置と回転を更新
-      camera.position.set(player.position.x, player.position.y + 1.6, player.position.z);
+      camera.position.set(
+        player.position.x,
+        player.position.y + 1.6,
+        player.position.z
+      );
       camera.rotation.y = player.rotation.y;
 
       // サーバーに位置を送信
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
           type: 'move',
-          name: playerName,
-          position: [player.position.x, player.position.z],
-          rotation: player.rotation.y
+          position: player.position,
+          rotation: player.rotation
         }));
+      }
+    }
+
+    // 鍵の取得判定
+    function checkKeyCollection() {
+      const keyRadius = 0.5; // 鍵の取得範囲
+      gameState.keys.forEach(key => {
+        if (!key.found) {
+          const dx = player.position.x - key.position[0];
+          const dz = player.position.z - key.position[1];
+          const distance = Math.sqrt(dx * dx + dz * dz);
+          
+          if (distance < keyRadius) {
+            // サーバーに鍵取得を通知
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                type: 'collect_key',
+                key_id: key.id,
+                name: playerName
+              }));
+            }
+          }
+        }
+      });
+    }
+
+    // 脱出判定
+    function checkEscape() {
+      if (gameState && gameState.game_state.keys_found >= gameState.game_state.total_keys) {
+        const dx = player.position.x - gameState.escape_point[0];
+        const dz = player.position.z - gameState.escape_point[1];
+        const distance = Math.sqrt(dx * dx + dz * dz);
+        
+        if (distance < 0.5) {
+          // サーバーに脱出を通知
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'escape',
+              name: playerName
+            }));
+          }
+        }
       }
     }
 
@@ -221,23 +292,56 @@
     function animate() {
       requestAnimationFrame(animate);
       updatePlayerPosition();
+      checkKeyCollection();
+      checkEscape(); // 脱出判定を追加
       renderer.render(scene, camera);
     }
 
-    // WebSocket接続
-    function connect() {
+    // プレイヤー登録
+    function registerPlayer() {
+      playerName = document.getElementById('player-name').value;
+      playerRole = document.getElementById('player-role').value;
+      playerAvatar = document.getElementById('player-avatar').value;
+      
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'register',
+          name: playerName,
+          role: playerRole,
+          avatar: playerAvatar
+        }));
+      } else {
+        alert('WebSocket接続が確立されていません。ページを再読み込みしてください。');
+      }
+    }
+
+    // ゲーム状態の更新
+    function updateGameState() {
+      const statusDiv = document.getElementById('status');
+      if (gameState && gameState.game_state) {
+        statusDiv.innerHTML = `
+          <h3>Game Status</h3>
+          <p>Keys Found: ${gameState.game_state.keys_found}/${gameState.game_state.total_keys}</p>
+          <p>Time Remaining: ${Math.floor(gameState.game_state.time_remaining / 60)}:${(gameState.game_state.time_remaining % 60).toString().padStart(2, '0')}</p>
+        `;
+      }
+    }
+
+    // WebSocketの設定
+    function setupWebSocket() {
       ws = new WebSocket('ws://' + window.location.host + '/websocket');
+      
+      ws.onopen = function() {
+        console.log('WebSocket接続が確立されました');
+      };
       
       ws.onmessage = function(event) {
         const data = JSON.parse(event.data);
-        console.log('Received WebSocket message:', data);
+        console.log('Received message:', data);
+        
         switch(data.type) {
           case 'register_success':
             document.getElementById('login-form').classList.add('hidden');
-            playerName = document.getElementById('player-name').value;
-            playerRole = document.getElementById('player-role').value;
-            playerAvatar = document.getElementById('player-avatar').value;
-            console.log('Player registered:', { playerName, playerRole, playerAvatar });
             initThreeJS();
             generateMaze();
             animate();
@@ -246,52 +350,50 @@
             alert(data.message);
             break;
           case 'game_state':
+            // 鍵の状態を更新
+            if (gameState && gameState.keys) {
+              data.state.keys.forEach(newKey => {
+                const existingKey = gameState.keys.find(k => k.id === newKey.id);
+                if (existingKey && !existingKey.found && newKey.found) {
+                  // 取得された鍵を非表示にする
+                  scene.children.forEach(child => {
+                    if (child.userData.keyId === newKey.id) {
+                      scene.remove(child);
+                    }
+                  });
+                }
+              });
+            }
             gameState = data.state;
             updateGameState();
+
+            // 脱出可能な場合、メッセージを表示
+            if (gameState.game_state.keys_found >= gameState.game_state.total_keys) {
+              const statusDiv = document.getElementById('status');
+              statusDiv.innerHTML += '<p style="color: green;">脱出可能！出口に向かってください。</p>';
+            }
+            break;
+          case 'player_joined':
+            console.log('新しいプレイヤーが参加しました:', data.name);
+            break;
+          case 'player_left':
+            console.log('プレイヤーが退出しました:', data.name);
+            break;
+          case 'game_over':
+            console.log('ゲーム終了:', data.message);
+            alert(data.message);
             break;
         }
       };
-
-      ws.onopen = function() {
-        console.log('WebSocket connection established');
-      };
-
-      ws.onerror = function(error) {
-        console.error('WebSocket error:', error);
-      };
-
+      
       ws.onclose = function() {
-        console.log('WebSocket connection closed');
+        console.log('WebSocket接続が切断されました');
       };
     }
 
-    function registerPlayer() {
-      const name = document.getElementById('player-name').value;
-      const role = document.getElementById('player-role').value;
-      const avatar = document.getElementById('player-avatar').value;
-      if (name && role) {
-        ws.send(JSON.stringify({
-          type: 'register',
-          name: name,
-          role: role,
-          avatar: avatar
-        }));
-      }
-    }
-
-    function updateGameState() {
-      // ゲーム状態の更新処理
-      const statusDiv = document.getElementById('status');
-      statusDiv.innerHTML = `
-        <h3>Game Status</h3>
-        <p>Keys Found: ${gameState.game_state.keys_found}/${gameState.game_state.total_keys}</p>
-        <p>Time Remaining: ${Math.floor(gameState.game_state.time_remaining / 60)}:${(gameState.game_state.time_remaining % 60).toString().padStart(2, '0')}</p>
-      `;
-    }
-
-    // ページ読み込み時にWebSocket接続を開始
+    // ページ読み込み時の初期化
     window.onload = function() {
-      connect();
+      setupWebSocket();
     };
 
     // ウィンドウリサイズ時の処理
@@ -303,7 +405,7 @@
 
     // 迷路の生成
     function generateMaze() {
-      const wallGeometry = new THREE.BoxGeometry(1, 4, 1); // 壁の高さを4に増やす
+      const wallGeometry = new THREE.BoxGeometry(1, 4, 1);
       const wallMaterial = new THREE.MeshPhongMaterial({ 
         color: 0x808080,
         shininess: 30
@@ -324,7 +426,7 @@
       // 壁の追加
       gameState.obstacles.forEach(obs => {
         const wall = new THREE.Mesh(wallGeometry, wallMaterial);
-        wall.position.set(obs.position[0], 1, obs.position[1]); // y座標を1に設定して、床から少し浮かせる
+        wall.position.set(obs.position[0], 1, obs.position[1]);
         wall.castShadow = true;
         wall.receiveShadow = true;
         scene.add(wall);
@@ -340,7 +442,7 @@
       escape.position.set(gameState.escape_point[0], -0.95, gameState.escape_point[1]);
       scene.add(escape);
 
-      // 鍵の追加
+      // 鍵の追加（未取得のもののみ）
       gameState.keys.forEach(key => {
         if (!key.found) {
           const keyGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
@@ -351,12 +453,13 @@
           const keyMesh = new THREE.Mesh(keyGeometry, keyMaterial);
           keyMesh.position.set(key.position[0], 0.5, key.position[1]);
           keyMesh.castShadow = true;
+          keyMesh.userData.keyId = key.id; // 鍵のIDを保存
           scene.add(keyMesh);
         }
       });
 
       // 迷路の境界を追加
-      const boundaryGeometry = new THREE.BoxGeometry(1, 4, 1); // 境界の壁も高さ4に
+      const boundaryGeometry = new THREE.BoxGeometry(1, 4, 1);
       const boundaryMaterial = new THREE.MeshPhongMaterial({ 
         color: 0x404040,
         shininess: 30
@@ -367,7 +470,7 @@
         for (let z = -8; z <= 8; z++) {
           if (x === -8 || x === 8 || z === -8 || z === 8) {
             const wall = new THREE.Mesh(boundaryGeometry, boundaryMaterial);
-            wall.position.set(x, 1, z); // y座標を1に設定
+            wall.position.set(x, 1, z);
             wall.castShadow = true;
             wall.receiveShadow = true;
             scene.add(wall);

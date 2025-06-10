@@ -123,6 +123,55 @@ class GameServer
     broadcast_update
   end
 
+  def collect_key(name, key_id)
+    return false unless @players[name]
+    return false if @players[name][:caught] || @players[name][:escaped]
+    return false if @players[name][:role] != 'survivor'
+
+    key = @keys.find { |k| k[:id] == key_id }
+    return false unless key
+    return false if key[:found]
+
+    key[:found] = true
+    @players[name][:keys_collected] += 1
+    @game_state[:keys_found] += 1
+    broadcast_update
+    true
+  end
+
+  def escape(name)
+    return false unless @players[name]
+    return false if @players[name][:caught] || @players[name][:escaped]
+    return false if @players[name][:role] != 'survivor'
+    return false if @players[name][:keys_collected] < @game_state[:total_keys]
+
+    # 脱出地点との距離をチェック
+    dx = @players[name][:position][0] - @escape_point[0]
+    dz = @players[name][:position][1] - @escape_point[1]
+    return false if Math.sqrt(dx * dx + dz * dz) >= 0.5
+
+    @players[name][:escaped] = true
+    check_win_condition
+    broadcast_update
+    true
+  end
+
+  def check_win_condition
+    survivors = @players.select { |_, p| p[:role] == 'survivor' }
+    escaped = survivors.count { |_, p| p[:escaped] }
+    caught = survivors.count { |_, p| p[:caught] }
+    
+    if escaped > 0
+      @game_state[:game_over] = true
+      @game_state[:winner] = 'survivors'
+      broadcast_game_state
+    elsif caught == survivors.size
+      @game_state[:game_over] = true
+      @game_state[:winner] = 'hunter'
+      broadcast_game_state
+    end
+  end
+
   private
 
   def generate_escape_point
@@ -164,7 +213,7 @@ class GameServer
       next if keys.any? { |k| k[:position] == [x, y] }
       next if [x, y] == @escape_point
       next if @obstacles.any? { |obs| obs[:position] == [x, y] }
-      keys << { position: [x, y], found: false }
+      keys << { id: keys.size, position: [x, y], found: false }
     end
     keys
   end
@@ -209,20 +258,6 @@ class GameServer
           check_win_condition
         end
       end
-    end
-  end
-
-  def check_win_condition
-    survivors = @players.select { |_, p| p[:role] == 'survivor' }
-    escaped = survivors.count { |_, p| p[:escaped] }
-    caught = survivors.count { |_, p| p[:caught] }
-    
-    if escaped > 0
-      @game_state[:game_over] = true
-      @game_state[:winner] = 'survivors'
-    elsif caught == survivors.size
-      @game_state[:game_over] = true
-      @game_state[:winner] = 'hunter'
     end
   end
 
