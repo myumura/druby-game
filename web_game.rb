@@ -70,8 +70,9 @@ class WebGame < Sinatra::Base
           end
         when 'move'
           name = data['name']
-          direction = data['direction']
-          settings.game_server.move_player(name, direction)
+          position = data['position']
+          rotation = data['rotation']
+          settings.game_server.move_player(name, position, rotation)
         when 'reset'
           settings.game_server.reset
         end

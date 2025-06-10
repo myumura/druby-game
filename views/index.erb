@@ -1,142 +1,66 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>DRuby Asymmetric Game</title>
+  <title>3D Maze Game</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <style>
     body {
-      font-family: Arial, sans-serif;
       margin: 0;
-      padding: 20px;
-      background-color: white;
+      overflow: hidden;
     }
     #game-container {
-      max-width: 800px;
-      margin: 0 auto;
-      background-color: white;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      position: relative;
+      width: 100vw;
+      height: 100vh;
     }
-    #game-map {
-      display: grid;
-      grid-template-columns: repeat(17, 30px);
-      grid-template-rows: repeat(17, 30px);
-      gap: 1px;
-      background-color: white;
-      padding: 10px;
-      margin: 20px auto;
-      width: fit-content;
-    }
-    .cell {
-      width: 30px;
-      height: 30px;
-      background-color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: bold;
-      font-size: 20px;
-      transition: all 0.3s;
-      border: 1px solid #ddd;
-    }
-    .hunter {
-      color: red;
-      text-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
-    }
-    .survivor {
-      color: green;
-      text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
-    }
-    .key {
-      color: gold;
-      text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
-    }
-    .escape {
-      color: blue;
-      text-shadow: 0 0 5px rgba(0, 0, 255, 0.5);
-    }
-    .wall {
-      background-color: #666;
+    #ui-overlay {
+      position: absolute;
+      top: 20px;
+      left: 20px;
       color: white;
-      text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
-    }
-    .fog {
-      background-color: #000;
-      color: transparent;
-      border: 1px solid #333;
-    }
-    .cell:hover {
-      transform: scale(1.1);
-      z-index: 1;
-    }
-    #controls {
-      margin-top: 20px;
-      text-align: center;
-    }
-    button {
-      padding: 10px 20px;
-      margin: 5px;
-      font-size: 16px;
-      cursor: pointer;
-      border: none;
-      border-radius: 5px;
-      background-color: #4CAF50;
-      color: white;
-      transition: background-color 0.3s;
-    }
-    button:hover {
-      background-color: #45a049;
-    }
-    #status {
-      margin-top: 20px;
-      padding: 10px;
-      background-color: #f8f8f8;
-      border-radius: 5px;
-    }
-    .player-status {
-      margin: 10px 0;
-      padding: 10px;
-      background-color: #fff;
-      border-radius: 5px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .player-status p {
-      margin: 5px 0;
+      font-family: Arial, sans-serif;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+      z-index: 100;
     }
     #login-form {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-    #login-form input,
-    #login-form select {
-      padding: 8px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-    }
-    #login-form button {
-      background-color: #2196F3;
-    }
-    #login-form button:hover {
-      background-color: #1976D2;
-    }
-    .game-over {
-      position: fixed;
+      position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
       background-color: rgba(0, 0, 0, 0.8);
-      color: white;
       padding: 20px;
       border-radius: 10px;
-      text-align: center;
+      color: white;
       z-index: 1000;
+    }
+    #login-form input,
+    #login-form select,
+    #login-form button {
+      display: block;
+      margin: 10px 0;
+      padding: 8px;
+      width: 200px;
+    }
+    #login-form button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #login-form button:hover {
+      background-color: #45a049;
+    }
+    .hidden {
+      display: none;
     }
   </style>
 </head>
 <body>
   <div id="game-container">
-    <h1>DRuby Asymmetric Game</h1>
+    <div id="ui-overlay">
+      <div id="status"></div>
+    </div>
     <div id="login-form">
       <input type="text" id="player-name" placeholder="Enter your name">
       <select id="player-role">
@@ -145,45 +69,18 @@
       </select>
       <select id="player-avatar">
         <optgroup label="Hunter">
-          <option value="👻">👻 Ghost</option>
-          <option value="🧟">🧟 Zombie</option>
-          <option value="🧛">🧛 Vampire</option>
-          <option value="🧛‍♂️">🧛‍♂️ Vampire</option>
-          <option value="🧛‍♀️">🧛‍♀️ Vampire</option>
-          <option value="👹">👹 Ogre</option>
-          <option value="👺">👺 Goblin</option>
-          <option value="🤡">🤡 Clown</option>
+          <option value="ghost">Ghost</option>
+          <option value="zombie">Zombie</option>
+          <option value="vampire">Vampire</option>
         </optgroup>
         <optgroup label="Survivor">
-          <option value="🧑">🧑 Person</option>
-          <option value="👨">👨 Man</option>
-          <option value="👩">👩 Woman</option>
-          <option value="🧑‍🦰">🧑‍🦰 Person with Red Hair</option>
-          <option value="🧑‍🦱">🧑‍🦱 Person with Curly Hair</option>
-          <option value="🧑‍🦳">🧑‍🦳 Person with White Hair</option>
-          <option value="🧑‍🦲">🧑‍🦲 Person with No Hair</option>
-          <option value="👨‍🦰">👨‍🦰 Man with Red Hair</option>
-          <option value="👩‍🦰">👩‍🦰 Woman with Red Hair</option>
-          <option value="👨‍🦱">👨‍🦱 Man with Curly Hair</option>
-          <option value="👩‍🦱">👩‍🦱 Woman with Curly Hair</option>
-          <option value="👨‍🦳">👨‍🦳 Man with White Hair</option>
-          <option value="👩‍🦳">👩‍🦳 Woman with White Hair</option>
-          <option value="👨‍🦲">👨‍🦲 Man with No Hair</option>
-          <option value="👩‍🦲">👩‍🦲 Woman with No Hair</option>
+          <option value="person">Person</option>
+          <option value="man">Man</option>
+          <option value="woman">Woman</option>
         </optgroup>
       </select>
       <button onclick="registerPlayer()">Join Game</button>
     </div>
-    <div id="game-map"></div>
-    <div id="controls" style="display: none;">
-      <button onclick="move('up')">↑</button><br>
-      <button onclick="move('left')">←</button>
-      <button onclick="move('right')">→</button><br>
-      <button onclick="move('down')">↓</button>
-      <br><br>
-      <button onclick="resetGame()" style="background-color: #ff4444; color: white;">Reset Game</button>
-    </div>
-    <div id="status"></div>
   </div>
 
   <script>
@@ -191,31 +88,180 @@
     let playerName = '';
     let playerRole = '';
     let playerAvatar = '';
-
-    // ページ読み込み時にWebSocket接続を開始
-    window.onload = function() {
-      connect();
+    let scene, camera, renderer;
+    let maze = [];
+    let player = {
+      position: { x: 0.5, y: 0, z: 0.5 },
+      rotation: { y: 0 },
+      speed: 0.2,
+      turnSpeed: 0.1
+    };
+    let keys = {};
+    let gameState = {
+      players: {},
+      keys: [],
+      obstacles: [],
+      escape_point: [0, 0]
     };
 
+    // キーボード制御
+    document.addEventListener('keydown', function(e) {
+      console.log('Key pressed:', e.key);
+      switch(e.key) {
+        case 'ArrowUp':
+          keys['up'] = true;
+          break;
+        case 'ArrowDown':
+          keys['down'] = true;
+          break;
+        case 'ArrowLeft':
+          keys['left'] = true;
+          break;
+        case 'ArrowRight':
+          keys['right'] = true;
+          break;
+      }
+      console.log('Keys state after keydown:', keys);
+    });
+
+    document.addEventListener('keyup', function(e) {
+      console.log('Key released:', e.key);
+      switch(e.key) {
+        case 'ArrowUp':
+          keys['up'] = false;
+          break;
+        case 'ArrowDown':
+          keys['down'] = false;
+          break;
+        case 'ArrowLeft':
+          keys['left'] = false;
+          break;
+        case 'ArrowRight':
+          keys['right'] = false;
+          break;
+      }
+      console.log('Keys state after keyup:', keys);
+    });
+
+    // Three.jsの初期化
+    function initThreeJS() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x87CEEB); // 空色の背景
+
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      document.getElementById('game-container').appendChild(renderer.domElement);
+
+      // 光源の追加
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
+
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(10, 20, 10);
+      directionalLight.castShadow = true;
+      directionalLight.shadow.mapSize.width = 2048;
+      directionalLight.shadow.mapSize.height = 2048;
+      directionalLight.shadow.camera.near = 0.5;
+      directionalLight.shadow.camera.far = 50;
+      scene.add(directionalLight);
+
+      // プレイヤーの初期位置を設定（中央から少しずらす）
+      player.position = { x: 0.5, y: 0, z: 0.5 };
+      player.rotation = { y: 0 };
+
+      // カメラの初期位置
+      camera.position.set(player.position.x, player.position.y + 1.6, player.position.z);
+      camera.rotation.y = player.rotation.y;
+    }
+
+    // プレイヤーの移動
+    function updatePlayerPosition() {
+      console.log('Current keys state:', keys);
+      console.log('Current player position:', player.position);
+      console.log('Current player rotation:', player.rotation);
+      
+      // 移動の計算
+      if (keys['up']) {
+        player.position.x += Math.sin(player.rotation.y) * player.speed;
+        player.position.z += Math.cos(player.rotation.y) * player.speed;
+        console.log('Moving forward');
+      }
+      if (keys['down']) {
+        player.position.x -= Math.sin(player.rotation.y) * player.speed;
+        player.position.z -= Math.cos(player.rotation.y) * player.speed;
+        console.log('Moving backward');
+      }
+      if (keys['left']) {
+        player.rotation.y += player.turnSpeed;
+        console.log('Turning left');
+      }
+      if (keys['right']) {
+        player.rotation.y -= player.turnSpeed;
+        console.log('Turning right');
+      }
+
+      // カメラの位置と回転を更新
+      camera.position.set(player.position.x, player.position.y + 1.6, player.position.z);
+      camera.rotation.y = player.rotation.y;
+
+      // サーバーに位置を送信
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'move',
+          name: playerName,
+          position: [player.position.x, player.position.z],
+          rotation: player.rotation.y
+        }));
+      }
+    }
+
+    // アニメーションループ
+    function animate() {
+      requestAnimationFrame(animate);
+      updatePlayerPosition();
+      renderer.render(scene, camera);
+    }
+
+    // WebSocket接続
     function connect() {
       ws = new WebSocket('ws://' + window.location.host + '/websocket');
       
       ws.onmessage = function(event) {
         const data = JSON.parse(event.data);
+        console.log('Received WebSocket message:', data);
         switch(data.type) {
           case 'register_success':
-            document.getElementById('controls').style.display = 'block';
+            document.getElementById('login-form').classList.add('hidden');
             playerName = document.getElementById('player-name').value;
             playerRole = document.getElementById('player-role').value;
             playerAvatar = document.getElementById('player-avatar').value;
+            console.log('Player registered:', { playerName, playerRole, playerAvatar });
+            initThreeJS();
+            generateMaze();
+            animate();
             break;
           case 'register_failed':
             alert(data.message);
             break;
           case 'game_state':
-            updateGameState(data.state);
+            gameState = data.state;
+            updateGameState();
             break;
         }
+      };
+
+      ws.onopen = function() {
+        console.log('WebSocket connection established');
+      };
+
+      ws.onerror = function(error) {
+        console.error('WebSocket error:', error);
+      };
+
+      ws.onclose = function() {
+        console.log('WebSocket connection closed');
       };
     }
 
@@ -233,154 +279,102 @@
       }
     }
 
-    function move(direction) {
-      ws.send(JSON.stringify({
-        type: 'move',
-        name: playerName,
-        direction: direction
-      }));
-    }
-
-    function resetGame() {
-      // ゲームオーバーポップアップを削除
-      const gameOver = document.querySelector('.game-over');
-      if (gameOver) {
-        gameOver.remove();
-      }
-      
-      ws.send(JSON.stringify({
-        type: 'reset'
-      }));
-      document.getElementById('controls').style.display = 'none';
-      
-      // ステータス情報をリセット
-      const status = document.getElementById('status');
-      status.innerHTML = `
+    function updateGameState() {
+      // ゲーム状態の更新処理
+      const statusDiv = document.getElementById('status');
+      statusDiv.innerHTML = `
         <h3>Game Status</h3>
-        <p>Time remaining: 300 seconds</p>
-        <p>Keys found: 0/3</p>
-        <h3>Players</h3>
+        <p>Keys Found: ${gameState.game_state.keys_found}/${gameState.game_state.total_keys}</p>
+        <p>Time Remaining: ${Math.floor(gameState.game_state.time_remaining / 60)}:${(gameState.game_state.time_remaining % 60).toString().padStart(2, '0')}</p>
       `;
     }
 
-    function updateGameState(state) {
-      // マップの更新
-      const gameMap = document.getElementById('game-map');
-      gameMap.innerHTML = '';
+    // ページ読み込み時にWebSocket接続を開始
+    window.onload = function() {
+      connect();
+    };
 
-      // プレイヤーの位置を取得
-      const currentPlayer = state.players[playerName];
-      if (!currentPlayer) return;
-
-      // マップの生成
-      for (let y = 8; y >= -8; y--) {
-        for (let x = -8; x <= 8; x++) {
-          const cell = document.createElement('div');
-          cell.className = 'cell';
-          
-          // 視界の範囲を計算
-          const isVisible = isInRange(currentPlayer.position, [x, y], currentPlayer.role);
-          
-          if (!isVisible) {
-            cell.classList.add('fog');
-            gameMap.appendChild(cell);
-            continue;
-          }
-
-          // 脱出地点
-          if (state.escape_point[0] === x && state.escape_point[1] === y) {
-            cell.textContent = '🚪';
-            cell.classList.add('escape');
-          }
-          // 障害物
-          else if (state.obstacles.some(obs => obs.position[0] === x && obs.position[1] === y)) {
-            cell.textContent = '█';
-            cell.classList.add('wall');
-          }
-          // 鍵
-          else if (state.keys.some(key => key.position[0] === x && key.position[1] === y && !key.found)) {
-            cell.textContent = '🔑';
-            cell.classList.add('key');
-          }
-          // プレイヤー
-          else {
-            let playerFound = false;
-            for (const [name, player] of Object.entries(state.players)) {
-              if (player.position[0] === x && player.position[1] === y) {
-                cell.textContent = player.avatar || (player.role === 'hunter' ? '👻' : '🧟');
-                cell.classList.add(player.role);
-                playerFound = true;
-                break;
-              }
-            }
-            if (!playerFound) {
-              cell.textContent = '.';
-            }
-          }
-          
-          gameMap.appendChild(cell);
-        }
-      }
-
-      // ステータスの更新
-      const status = document.getElementById('status');
-      status.innerHTML = `
-        <h3>Game Status</h3>
-        <p>Time remaining: ${state.game_state.time_remaining} seconds</p>
-        <p>Keys found: ${state.game_state.keys_found}/${state.game_state.total_keys}</p>
-        <h3>Players</h3>
-        ${Object.entries(state.players).map(([name, player]) => `
-          <div class="player-status">
-            <p>${name} (${player.role}) ${player.avatar}</p>
-            <p>Status: ${player.caught ? 'Caught' : player.escaped ? 'Escaped' : 'Active'}</p>
-            ${player.role === 'survivor' ? `<p>Keys collected: ${player.keys_collected}</p>` : ''}
-          </div>
-        `).join('')}
-      `;
-
-      // ゲームオーバー時の表示
-      if (state.game_state.game_over) {
-        const existingGameOver = document.querySelector('.game-over');
-        if (!existingGameOver) {
-          const gameOver = document.createElement('div');
-          gameOver.className = 'game-over';
-          gameOver.innerHTML = `
-            <h2>Game Over!</h2>
-            <p>Winner: ${state.game_state.winner}</p>
-            <button onclick="resetGame()">Play Again</button>
-          `;
-          document.body.appendChild(gameOver);
-        }
-      }
-    }
-
-    // 視界の範囲を計算する関数
-    function isInRange(playerPos, targetPos, role) {
-      const range = role === 'hunter' ? 3 : 2; // 鬼は視界が広い
-      const dx = Math.abs(playerPos[0] - targetPos[0]);
-      const dy = Math.abs(playerPos[1] - targetPos[1]);
-      return dx <= range && dy <= range;
-    }
-
-    // キーボード操作の追加
-    document.addEventListener('keydown', function(event) {
-      if (document.getElementById('controls').style.display === 'none') return;
-      
-      switch(event.key) {
-        case 'ArrowUp':
-          move('up');
-          break;
-        case 'ArrowDown':
-          move('down');
-          break;
-        case 'ArrowLeft':
-          move('left');
-          break;
-        case 'ArrowRight':
-          move('right');
-          break;
-      }
+    // ウィンドウリサイズ時の処理
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
     });
+
+    // 迷路の生成
+    function generateMaze() {
+      const wallGeometry = new THREE.BoxGeometry(1, 4, 1); // 壁の高さを4に増やす
+      const wallMaterial = new THREE.MeshPhongMaterial({ 
+        color: 0x808080,
+        shininess: 30
+      });
+      const floorGeometry = new THREE.PlaneGeometry(100, 100);
+      const floorMaterial = new THREE.MeshPhongMaterial({ 
+        color: 0x404040,
+        shininess: 30
+      });
+
+      // 床の追加
+      const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = -1;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      // 壁の追加
+      gameState.obstacles.forEach(obs => {
+        const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+        wall.position.set(obs.position[0], 1, obs.position[1]); // y座標を1に設定して、床から少し浮かせる
+        wall.castShadow = true;
+        wall.receiveShadow = true;
+        scene.add(wall);
+      });
+
+      // 脱出地点の追加
+      const escapeGeometry = new THREE.BoxGeometry(1, 0.1, 1);
+      const escapeMaterial = new THREE.MeshPhongMaterial({ 
+        color: 0x0000ff,
+        shininess: 30
+      });
+      const escape = new THREE.Mesh(escapeGeometry, escapeMaterial);
+      escape.position.set(gameState.escape_point[0], -0.95, gameState.escape_point[1]);
+      scene.add(escape);
+
+      // 鍵の追加
+      gameState.keys.forEach(key => {
+        if (!key.found) {
+          const keyGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+          const keyMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0xffd700,
+            shininess: 100
+          });
+          const keyMesh = new THREE.Mesh(keyGeometry, keyMaterial);
+          keyMesh.position.set(key.position[0], 0.5, key.position[1]);
+          keyMesh.castShadow = true;
+          scene.add(keyMesh);
+        }
+      });
+
+      // 迷路の境界を追加
+      const boundaryGeometry = new THREE.BoxGeometry(1, 4, 1); // 境界の壁も高さ4に
+      const boundaryMaterial = new THREE.MeshPhongMaterial({ 
+        color: 0x404040,
+        shininess: 30
+      });
+
+      // 外壁を追加
+      for (let x = -8; x <= 8; x++) {
+        for (let z = -8; z <= 8; z++) {
+          if (x === -8 || x === 8 || z === -8 || z === 8) {
+            const wall = new THREE.Mesh(boundaryGeometry, boundaryMaterial);
+            wall.position.set(x, 1, z); // y座標を1に設定
+            wall.castShadow = true;
+            wall.receiveShadow = true;
+            scene.add(wall);
+          }
+        }
+      }
+    }
   </script>
 </body>
 </html> 

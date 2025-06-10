@@ -13,7 +13,7 @@ class GameServer
       game_over: false,
       winner: nil
     }
-    @escape_point = generate_escape_point # 脱出地点を先に生成
+    @escape_point = generate_escape_point
     @obstacles = generate_obstacles
     @keys = generate_keys
 
@@ -25,7 +25,8 @@ class GameServer
     return false if @players[name]
     @players[name] = { 
       role: role, 
-      position: [0, 0], 
+      position: [0.0, 0.0], 
+      rotation: 0.0,
       avatar: avatar,
       caught: false,
       escaped: false,
@@ -40,30 +41,22 @@ class GameServer
     true
   end
 
-  def move_player(name, direction)
+  def move_player(name, position, rotation)
     return false unless @players[name]
     return false if @players[name][:caught] || @players[name][:escaped]
     
-    current_position = @players[name][:position].dup
-    
-    case direction
-    when 'up'
-      new_position = [current_position[0], current_position[1] + 1]
-    when 'down'
-      new_position = [current_position[0], current_position[1] - 1]
-    when 'left'
-      new_position = [current_position[0] - 1, current_position[1]]
-    when 'right'
-      new_position = [current_position[0] + 1, current_position[1]]
+    # 移動範囲の制限
+    return false if position[0].abs > 8 || position[1].abs > 8
+
+    # 障害物との衝突チェック
+    return false if @obstacles.any? do |obs|
+      dx = position[0] - obs[:position][0]
+      dz = position[1] - obs[:position][1]
+      Math.sqrt(dx * dx + dz * dz) < 0.5 # プレイヤーと障害物の距離が0.5未満なら衝突
     end
 
-    # 移動範囲の制限
-    return false if new_position[0].abs > 8 || new_position[1].abs > 8
-
-    # 障害物のチェック
-    return false if @obstacles.any? { |obs| obs[:position] == new_position }
-
-    @players[name][:position] = new_position
+    @players[name][:position] = position
+    @players[name][:rotation] = rotation
     check_game_state
     broadcast_update
     true
@@ -97,7 +90,7 @@ class GameServer
       game_over: false,
       winner: nil
     }
-    @escape_point = generate_escape_point # 脱出地点を先に生成
+    @escape_point = generate_escape_point
     @obstacles = generate_obstacles
     @keys = generate_keys
     broadcast_update
@@ -182,15 +175,21 @@ class GameServer
       next if player[:role] != 'survivor' || player[:caught] || player[:escaped]
       
       @keys.each do |key|
-        if key[:position] == player[:position] && !key[:found]
-          key[:found] = true
-          player[:keys_collected] += 1
-          @game_state[:keys_found] += 1
+        if !key[:found]
+          dx = player[:position][0] - key[:position][0]
+          dz = player[:position][1] - key[:position][1]
+          if Math.sqrt(dx * dx + dz * dz) < 0.5 # プレイヤーと鍵の距離が0.5未満なら取得
+            key[:found] = true
+            player[:keys_collected] += 1
+            @game_state[:keys_found] += 1
+          end
         end
       end
 
       # 脱出チェック
-      if player[:position] == @escape_point && player[:keys_collected] >= 3
+      dx = player[:position][0] - @escape_point[0]
+      dz = player[:position][1] - @escape_point[1]
+      if Math.sqrt(dx * dx + dz * dz) < 0.5 && player[:keys_collected] >= 3
         player[:escaped] = true
         check_win_condition
       end
@@ -203,7 +202,9 @@ class GameServer
       @players.each do |survivor_name, survivor|
         next if survivor[:role] != 'survivor' || survivor[:caught] || survivor[:escaped]
         
-        if hunter[:position] == survivor[:position]
+        dx = hunter[:position][0] - survivor[:position][0]
+        dz = hunter[:position][1] - survivor[:position][1]
+        if Math.sqrt(dx * dx + dz * dz) < 0.5 # プレイヤー間の距離が0.5未満なら捕まえた
           survivor[:caught] = true
           check_win_condition
         end
