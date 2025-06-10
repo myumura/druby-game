@@ -106,7 +106,6 @@
 
     // キーボード制御
     document.addEventListener('keydown', function(e) {
-      console.log('Key pressed:', e.key);
       switch(e.key) {
         case 'ArrowUp':
           keys['up'] = true;
@@ -121,11 +120,9 @@
           keys['right'] = true;
           break;
       }
-      console.log('Keys state after keydown:', keys);
     });
 
     document.addEventListener('keyup', function(e) {
-      console.log('Key released:', e.key);
       switch(e.key) {
         case 'ArrowUp':
           keys['up'] = false;
@@ -140,7 +137,6 @@
           keys['right'] = false;
           break;
       }
-      console.log('Keys state after keyup:', keys);
     });
 
     // Three.jsの初期化
@@ -244,7 +240,6 @@
           position: [player.position.x, player.position.z],
           rotation: player.rotation.y
         };
-        console.log('Sending position update:', message);
         ws.send(JSON.stringify(message));
       }
     }
@@ -274,65 +269,27 @@
 
     // 脱出判定
     function checkEscape() {
-      console.log('Checking escape conditions...');
-      console.log('Game state:', gameState);
-      console.log('Player role:', playerRole);
-      console.log('Player name:', playerName);
-      
       if (gameState && gameState.game_state && playerRole === 'survivor') {
         const player = gameState.players[playerName];
-        console.log('Player data:', player);
         
         if (player) {
-          console.log('Keys collected:', player.keys_collected);
-          console.log('Total keys needed:', gameState.game_state.total_keys);
-          console.log('Player position:', player.position);
-          console.log('Escape point:', gameState.escape_point);
-          
           if (player.keys_collected >= gameState.game_state.total_keys) {
-            // 位置情報の詳細なデバッグ
-            console.log('Position calculation details:', {
-              playerX: player.position[0],
-              playerZ: player.position[1],
-              escapeX: gameState.escape_point[0],
-              escapeZ: gameState.escape_point[1],
-              dx: player.position[0] - gameState.escape_point[0],
-              dz: player.position[1] - gameState.escape_point[1]
-            });
-
-            // サーバーから受け取った位置情報を使用
             const dx = player.position[0] - gameState.escape_point[0];
             const dz = player.position[1] - gameState.escape_point[1];
             const distance = Math.sqrt(dx * dx + dz * dz);
-            console.log('Distance to escape point:', distance);
             
             if (distance < 1.0) {
-              console.log('Sending escape request to server...');
-              // サーバーに脱出を通知
               if (ws && ws.readyState === WebSocket.OPEN) {
                 const message = {
                   type: 'escape',
                   name: playerName,
-                  position: player.position // サーバーから受け取った位置情報をそのまま使用
+                  position: player.position
                 };
-                console.log('Sending message:', message);
                 ws.send(JSON.stringify(message));
-              } else {
-                console.log('WebSocket is not open!');
               }
             }
-          } else {
-            console.log('Not enough keys collected');
           }
-        } else {
-          console.log('Player data not found in game state');
         }
-      } else {
-        console.log('Escape check conditions not met:', {
-          hasGameState: !!gameState,
-          hasGameStateData: !!(gameState && gameState.game_state),
-          isSurvivor: playerRole === 'survivor'
-        });
       }
     }
 
@@ -381,12 +338,11 @@
       ws = new WebSocket('ws://' + window.location.host + '/websocket');
       
       ws.onopen = function() {
-        console.log('WebSocket接続が確立されました');
+        // WebSocket接続が確立されました
       };
       
       ws.onmessage = function(event) {
         const data = JSON.parse(event.data);
-        console.log('Received message:', data);
         
         switch(data.type) {
           case 'register_success':

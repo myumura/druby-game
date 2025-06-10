@@ -98,7 +98,6 @@ class GameServer
   end
 
   def start_timer
-    puts "Starting timer thread..."
     Thread.new do
       while true
         if @game_state[:game_started] && !@game_state[:game_over]
@@ -140,41 +139,20 @@ class GameServer
   end
 
   def escape(name, position = nil)
-    puts "Escape attempt by #{name}"
-    puts "Player data: #{@players[name].inspect}"
-    puts "Game state: #{@game_state.inspect}"
-    puts "Received position: #{position.inspect}"
-    
     return false unless @players[name]
-    puts "Player exists"
-    
     return false if @players[name][:caught] || @players[name][:escaped]
-    puts "Player is not caught or escaped"
-    
     return false if @players[name][:role] != 'survivor'
-    puts "Player is survivor"
-    
     return false if @players[name][:keys_collected] < @game_state[:total_keys]
-    puts "Player has enough keys"
 
     # 脱出地点との距離をチェック
-    # クライアントから送られてきた位置情報を使用
     pos = position || @players[name][:position]
-    puts "Using position: #{pos.inspect}"
-    puts "Escape point: #{@escape_point.inspect}"
-    
     dx = pos[0].to_f - @escape_point[0].to_f
     dz = pos[1].to_f - @escape_point[1].to_f
-    puts "Position calculation: dx=#{dx}, dz=#{dz}"
-    
     distance = Math.sqrt(dx * dx + dz * dz)
-    puts "Distance to escape point: #{distance}"
     
     return false if distance >= 1.0
-    puts "Player is close enough to escape point"
 
     @players[name][:escaped] = true
-    puts "Player marked as escaped"
     check_win_condition
     broadcast_update
     true
