@@ -238,11 +238,14 @@
 
       // サーバーに位置を送信
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
+        const message = {
           type: 'move',
-          position: player.position,
-          rotation: player.rotation
-        }));
+          name: playerName,
+          position: [player.position.x, player.position.z],
+          rotation: player.rotation.y
+        };
+        console.log('Sending position update:', message);
+        ws.send(JSON.stringify(message));
       }
     }
 
@@ -271,29 +274,75 @@
 
     // 脱出判定
     function checkEscape() {
-      if (gameState && gameState.game_state.keys_found >= gameState.game_state.total_keys) {
-        const dx = player.position.x - gameState.escape_point[0];
-        const dz = player.position.z - gameState.escape_point[1];
-        const distance = Math.sqrt(dx * dx + dz * dz);
+      console.log('Checking escape conditions...');
+      console.log('Game state:', gameState);
+      console.log('Player role:', playerRole);
+      console.log('Player name:', playerName);
+      
+      if (gameState && gameState.game_state && playerRole === 'survivor') {
+        const player = gameState.players[playerName];
+        console.log('Player data:', player);
         
-        if (distance < 0.5) {
-          // サーバーに脱出を通知
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-              type: 'escape',
-              name: playerName
-            }));
+        if (player) {
+          console.log('Keys collected:', player.keys_collected);
+          console.log('Total keys needed:', gameState.game_state.total_keys);
+          console.log('Player position:', player.position);
+          console.log('Escape point:', gameState.escape_point);
+          
+          if (player.keys_collected >= gameState.game_state.total_keys) {
+            // 位置情報の詳細なデバッグ
+            console.log('Position calculation details:', {
+              playerX: player.position[0],
+              playerZ: player.position[1],
+              escapeX: gameState.escape_point[0],
+              escapeZ: gameState.escape_point[1],
+              dx: player.position[0] - gameState.escape_point[0],
+              dz: player.position[1] - gameState.escape_point[1]
+            });
+
+            // サーバーから受け取った位置情報を使用
+            const dx = player.position[0] - gameState.escape_point[0];
+            const dz = player.position[1] - gameState.escape_point[1];
+            const distance = Math.sqrt(dx * dx + dz * dz);
+            console.log('Distance to escape point:', distance);
+            
+            if (distance < 1.0) {
+              console.log('Sending escape request to server...');
+              // サーバーに脱出を通知
+              if (ws && ws.readyState === WebSocket.OPEN) {
+                const message = {
+                  type: 'escape',
+                  name: playerName,
+                  position: player.position // サーバーから受け取った位置情報をそのまま使用
+                };
+                console.log('Sending message:', message);
+                ws.send(JSON.stringify(message));
+              } else {
+                console.log('WebSocket is not open!');
+              }
+            }
+          } else {
+            console.log('Not enough keys collected');
           }
+        } else {
+          console.log('Player data not found in game state');
         }
+      } else {
+        console.log('Escape check conditions not met:', {
+          hasGameState: !!gameState,
+          hasGameStateData: !!(gameState && gameState.game_state),
+          isSurvivor: playerRole === 'survivor'
+        });
       }
     }
 
     // アニメーションループ
+    let animationId;
     function animate() {
-      requestAnimationFrame(animate);
+      animationId = requestAnimationFrame(animate);
       updatePlayerPosition();
       checkKeyCollection();
-      checkEscape(); // 脱出判定を追加
+      checkEscape();
       renderer.render(scene, camera);
     }
 
@@ -350,6 +399,16 @@
             alert(data.message);
             break;
           case 'game_state':
+            // プレイヤーの位置情報を更新
+            if (data.state.players && data.state.players[playerName]) {
+              const serverPlayer = data.state.players[playerName];
+              if (serverPlayer.position) {
+                player.position.x = serverPlayer.position[0];
+                player.position.z = serverPlayer.position[1];
+                player.rotation.y = serverPlayer.rotation;
+              }
+            }
+            
             // 鍵の状態を更新
             if (gameState && gameState.keys) {
               data.state.keys.forEach(newKey => {
@@ -372,6 +431,29 @@
               const statusDiv = document.getElementById('status');
               statusDiv.innerHTML += '<p style="color: green;">脱出可能！出口に向かってください。</p>';
             }
+
+            // ゲーム終了状態の確認
+            if (gameState.game_state.game_over) {
+              const statusDiv = document.getElementById('status');
+              if (gameState.game_state.winner === 'survivors') {
+                statusDiv.innerHTML = '<h2 style="color: green;">脱出成功！</h2>';
+                // 脱出成功時のエフェクト
+                const successGeometry = new THREE.SphereGeometry(5, 32, 32);
+                const successMaterial = new THREE.MeshPhongMaterial({
+                  color: 0x00ff00,
+                  transparent: true,
+                  opacity: 0.5
+                });
+                const successSphere = new THREE.Mesh(successGeometry, successMaterial);
+                successSphere.position.set(0, 0, 0);
+                scene.add(successSphere);
+
+                // アニメーションを停止
+                cancelAnimationFrame(animationId);
+              } else {
+                statusDiv.innerHTML = '<h2 style="color: red;">ゲームオーバー</h2>';
+              }
+            }
             break;
           case 'player_joined':
             console.log('新しいプレイヤーが参加しました:', data.name);
@@ -381,7 +463,8 @@
             break;
           case 'game_over':
             console.log('ゲーム終了:', data.message);
-            alert(data.message);
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<h2 style="color: ${data.winner === 'survivors' ? 'green' : 'red'}">${data.message}</h2>`;
             break;
         }
       };
@@ -436,11 +519,24 @@
       const escapeGeometry = new THREE.BoxGeometry(1, 0.1, 1);
       const escapeMaterial = new THREE.MeshPhongMaterial({ 
         color: 0x0000ff,
-        shininess: 30
+        shininess: 30,
+        transparent: true,
+        opacity: 0.7
       });
       const escape = new THREE.Mesh(escapeGeometry, escapeMaterial);
-      escape.position.set(gameState.escape_point[0], -0.95, gameState.escape_point[1]);
+      escape.position.set(gameState.escape_point[0], 0.05, gameState.escape_point[1]); // 床の上に配置
       scene.add(escape);
+
+      // 脱出地点の視覚的な目印を追加
+      const markerGeometry = new THREE.CylinderGeometry(0.5, 0.5, 2, 32);
+      const markerMaterial = new THREE.MeshPhongMaterial({
+        color: 0x0000ff,
+        transparent: true,
+        opacity: 0.3
+      });
+      const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+      marker.position.set(gameState.escape_point[0], 1, gameState.escape_point[1]);
+      scene.add(marker);
 
       // 鍵の追加（未取得のもののみ）
       gameState.keys.forEach(key => {

@@ -79,7 +79,8 @@ class WebGame < Sinatra::Base
           settings.game_server.collect_key(name, key_id)
         when 'escape'
           name = data['name']
-          settings.game_server.escape(name)
+          position = data['position']
+          settings.game_server.escape(name, position)
         when 'reset'
           settings.game_server.reset
         end
