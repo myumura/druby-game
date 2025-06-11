@@ -601,19 +601,54 @@
       // 脱出地点の追加
       const escapeGeometry = new THREE.BoxGeometry(1, 0.1, 1);
       const escapeMaterial = new THREE.MeshPhongMaterial({ 
-        color: 0x0000ff,
-        shininess: 30,
+        color: 0x00ffff,  // より目立つ水色に変更
+        shininess: 100,
         transparent: true,
         opacity: 0.7
       });
       const escape = new THREE.Mesh(escapeGeometry, escapeMaterial);
-      escape.position.set(gameState.escape_point[0], 0.05, gameState.escape_point[1]); // 床の上に配置
+      escape.position.set(gameState.escape_point[0], 0.05, gameState.escape_point[1]);
       scene.add(escape);
+
+      // 脱出地点の光るエフェクト
+      const glowGeometry = new THREE.SphereGeometry(1.5, 32, 32);
+      const glowMaterial = new THREE.MeshPhongMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0.2,
+        side: THREE.DoubleSide
+      });
+      const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+      glow.position.set(gameState.escape_point[0], 1, gameState.escape_point[1]);
+      scene.add(glow);
+
+      // 脱出地点の矢印
+      const arrowGeometry = new THREE.ConeGeometry(0.3, 1, 32);
+      const arrowMaterial = new THREE.MeshPhongMaterial({
+        color: 0x00ffff,
+        shininess: 100
+      });
+      const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+      arrow.position.set(gameState.escape_point[0], 2, gameState.escape_point[1]);
+      arrow.rotation.x = Math.PI;  // 下向きに
+      scene.add(arrow);
+
+      // 脱出地点の点滅アニメーション
+      let time = 0;
+      const animateEscape = () => {
+        if (glow.parent) {
+          time += 0.05;
+          glow.material.opacity = 0.1 + Math.sin(time) * 0.1;
+          glow.scale.set(1 + Math.sin(time) * 0.2, 1 + Math.sin(time) * 0.2, 1 + Math.sin(time) * 0.2);
+          requestAnimationFrame(animateEscape);
+        }
+      };
+      animateEscape();
 
       // 脱出地点の視覚的な目印を追加
       const markerGeometry = new THREE.CylinderGeometry(0.5, 0.5, 2, 32);
       const markerMaterial = new THREE.MeshPhongMaterial({
-        color: 0x0000ff,
+        color: 0x00ffff,
         transparent: true,
         opacity: 0.3
       });
