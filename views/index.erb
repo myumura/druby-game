@@ -465,9 +465,14 @@
             if (!gameState || 
                 JSON.stringify(gameState.obstacles) !== JSON.stringify(data.state.obstacles) ||
                 JSON.stringify(gameState.escape_point) !== JSON.stringify(data.state.escape_point)) {
-              // シーンをクリア
-              while(scene.children.length > 0) { 
-                scene.remove(scene.children[0]); 
+              // シーンをクリア（安全に）
+              if (scene && scene.children) {
+                const children = [...scene.children];
+                children.forEach(child => {
+                  if (child !== camera) {
+                    scene.remove(child);
+                  }
+                });
               }
 
               // 光源の再設定
@@ -542,6 +547,18 @@
 
     // ページ読み込み時の初期化
     window.onload = function() {
+      // シーンの初期化
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      document.body.appendChild(renderer.domElement);
+
+      // カメラの初期位置設定
+      camera.position.set(0, 5, 10);
+      camera.lookAt(0, 0, 0);
+
       setupWebSocket();
     };
 
@@ -607,16 +624,79 @@
       // 鍵の追加（未取得のもののみ）
       gameState.keys.forEach(key => {
         if (!key.found) {
-          const keyGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-          const keyMaterial = new THREE.MeshPhongMaterial({ 
+          // 鍵のグループを作成
+          const keyGroup = new THREE.Group();
+          keyGroup.position.set(key.position[0], 0.5, key.position[1]);
+
+          // 鍵の頭部分（リング）
+          const keyRingGeometry = new THREE.TorusGeometry(0.15, 0.03, 16, 32);
+          const keyRingMaterial = new THREE.MeshPhongMaterial({ 
             color: 0xffd700,
             shininess: 100
           });
-          const keyMesh = new THREE.Mesh(keyGeometry, keyMaterial);
-          keyMesh.position.set(key.position[0], 0.5, key.position[1]);
-          keyMesh.castShadow = true;
-          keyMesh.userData.keyId = key.id; // 鍵のIDを保存
-          scene.add(keyMesh);
+          const keyRing = new THREE.Mesh(keyRingGeometry, keyRingMaterial);
+          // リングを垂直に配置
+          keyRing.rotation.y = Math.PI / 2;
+          keyGroup.add(keyRing);
+
+          // 鍵の胴体部分
+          const keyBodyGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.3, 16);
+          const keyBodyMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0xffd700,
+            shininess: 100
+          });
+          const keyBody = new THREE.Mesh(keyBodyGeometry, keyBodyMaterial);
+          // 胴体をリングの外側に配置し、縦位置を揃える
+          keyBody.position.set(0, -0.3, 0);
+          keyGroup.add(keyBody);
+
+          // 鍵の歯部分（2本）
+          const keyTeethMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0xffd700,
+            shininess: 100
+          });
+
+          // 1本目の歯
+          const keyTeeth1Geometry = new THREE.BoxGeometry(0.15, 0.03, 0.03);
+          const keyTeeth1 = new THREE.Mesh(keyTeeth1Geometry, keyTeethMaterial);
+          keyTeeth1.position.set(0, -0.3, -0.04);
+          // 歯部分をリングと平行に
+          keyTeeth1.rotation.y = Math.PI / 2;
+          keyGroup.add(keyTeeth1);
+
+          // 2本目の歯
+          const keyTeeth2Geometry = new THREE.BoxGeometry(0.15, 0.03, 0.03);
+          const keyTeeth2 = new THREE.Mesh(keyTeeth2Geometry, keyTeethMaterial);
+          keyTeeth2.position.set(0, -0.45, -0.04);
+          // 歯部分をリングと平行に
+          keyTeeth2.rotation.y = Math.PI / 2;
+          keyGroup.add(keyTeeth2);
+
+          // 影の設定
+          keyGroup.traverse((object) => {
+            if (object instanceof THREE.Mesh) {
+              object.castShadow = true;
+            }
+          });
+
+          // 鍵のIDを保存
+          keyGroup.userData.keyId = key.id;
+
+          // 浮遊アニメーション
+          let time = 0;
+          const animate = () => {
+            if (keyGroup.parent) {
+              time += 0.02;
+              // 上下の浮遊
+              keyGroup.position.y = 0.5 + Math.sin(time) * 0.1;
+              // 回転
+              keyGroup.rotation.y += 0.01;
+              requestAnimationFrame(animate);
+            }
+          };
+          animate();
+
+          scene.add(keyGroup);
         }
       });
 
@@ -639,6 +719,24 @@
           }
         }
       }
+
+      // アニメーションループ
+      function animate() {
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      // ゲームループ
+      function gameLoop() {
+        requestAnimationFrame(gameLoop);
+        // プレイヤーの移動処理
+        if (keys.ArrowUp) movePlayer('up');
+        if (keys.ArrowDown) movePlayer('down');
+        if (keys.ArrowLeft) movePlayer('left');
+        if (keys.ArrowRight) movePlayer('right');
+      }
+      gameLoop();
     }
   </script>
 </body>
