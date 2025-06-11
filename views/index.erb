@@ -54,6 +54,22 @@
     .hidden {
       display: none;
     }
+    #restart-button {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      padding: 10px 20px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      display: none;
+      z-index: 100;
+    }
+    #restart-button:hover {
+      background-color: #45a049;
+    }
   </style>
 </head>
 <body>
@@ -61,6 +77,7 @@
     <div id="ui-overlay">
       <div id="status"></div>
     </div>
+    <button id="restart-button" onclick="restartGame()">Restart Game</button>
     <div id="login-form">
       <input type="text" id="player-name" placeholder="Enter your name">
       <select id="player-role">
@@ -324,12 +341,71 @@
     // ゲーム状態の更新
     function updateGameState() {
       const statusDiv = document.getElementById('status');
+      const restartButton = document.getElementById('restart-button');
+      
       if (gameState && gameState.game_state) {
         statusDiv.innerHTML = `
           <h3>Game Status</h3>
           <p>Keys Found: ${gameState.game_state.keys_found}/${gameState.game_state.total_keys}</p>
           <p>Time Remaining: ${Math.floor(gameState.game_state.time_remaining / 60)}:${(gameState.game_state.time_remaining % 60).toString().padStart(2, '0')}</p>
         `;
+
+        // ゲームが開始されている場合、restartボタンを表示
+        if (gameState.game_state.game_started) {
+          restartButton.style.display = 'block';
+        }
+      }
+    }
+
+    // ゲームの再開
+    function restartGame() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'reset'
+        }));
+        
+        // アニメーションを停止
+        if (animationId) {
+          cancelAnimationFrame(animationId);
+          animationId = null;
+        }
+
+        // Three.jsの要素を完全にクリア
+        if (renderer) {
+          renderer.dispose();
+          document.getElementById('game-container').removeChild(renderer.domElement);
+        }
+        if (scene) {
+          while(scene.children.length > 0) { 
+            scene.remove(scene.children[0]); 
+          }
+        }
+        scene = null;
+        camera = null;
+        renderer = null;
+        
+        // ログインフォームを表示
+        document.getElementById('login-form').classList.remove('hidden');
+        
+        // ステータス表示をクリア
+        document.getElementById('status').innerHTML = '';
+        
+        // restartボタンを非表示
+        document.getElementById('restart-button').style.display = 'none';
+        
+        // プレイヤー情報をリセット
+        playerName = '';
+        playerRole = '';
+        playerAvatar = '';
+        
+        // 入力フォームをクリア
+        document.getElementById('player-name').value = '';
+        document.getElementById('player-role').value = 'hunter';
+        document.getElementById('player-avatar').value = 'ghost';
+
+        // プレイヤーの位置をリセット
+        player.position = { x: 0.5, y: 0, z: 0.5 };
+        player.rotation = { y: 0 };
       }
     }
 
@@ -349,6 +425,11 @@
             document.getElementById('login-form').classList.add('hidden');
             initThreeJS();
             generateMaze();
+            // プレイヤーの位置とカメラを初期化
+            player.position = { x: 0.5, y: 0, z: 0.5 };
+            player.rotation = { y: 0 };
+            camera.position.set(player.position.x, player.position.y + 1.6, player.position.z);
+            camera.rotation.y = player.rotation.y;
             animate();
             break;
           case 'register_failed':
@@ -379,7 +460,36 @@
                 }
               });
             }
-            gameState = data.state;
+
+            // マップの状態が変わった場合（リセット後など）、迷路を再生成
+            if (!gameState || 
+                JSON.stringify(gameState.obstacles) !== JSON.stringify(data.state.obstacles) ||
+                JSON.stringify(gameState.escape_point) !== JSON.stringify(data.state.escape_point)) {
+              // シーンをクリア
+              while(scene.children.length > 0) { 
+                scene.remove(scene.children[0]); 
+              }
+
+              // 光源の再設定
+              const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+              scene.add(ambientLight);
+
+              const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+              directionalLight.position.set(10, 20, 10);
+              directionalLight.castShadow = true;
+              directionalLight.shadow.mapSize.width = 2048;
+              directionalLight.shadow.mapSize.height = 2048;
+              directionalLight.shadow.camera.near = 0.5;
+              directionalLight.shadow.camera.far = 50;
+              scene.add(directionalLight);
+
+              // 迷路を再生成
+              gameState = data.state;
+              generateMaze();
+            } else {
+              gameState = data.state;
+            }
+
             updateGameState();
 
             // 脱出可能な場合、メッセージを表示

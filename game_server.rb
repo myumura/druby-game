@@ -93,6 +93,11 @@ class GameServer
     @escape_point = generate_escape_point
     @obstacles = generate_obstacles
     @keys = generate_keys
+
+    # タイマースレッドを再起動
+    @timer_thread&.exit
+    @timer_thread = start_timer
+
     broadcast_update
     true
   end
