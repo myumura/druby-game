@@ -1,24 +1,45 @@
-# DRuby Cooperative Game
+# 3D Maze Game
 
-A cooperative game built with Ruby, DRb, and WebSocket where players work together to find treasures and clear obstacles.
+A real-time 3D multiplayer maze game built with Ruby, DRb, WebSocket, and Three.js where players take on the roles of Hunters and Survivors in a thrilling chase game.
 
 ## Features
 
-- Real-time multiplayer gameplay
-- Two player roles: Explorer and Engineer
-- Explorers can find treasures
-- Engineers can clear obstacles
-- Web-based interface
+- Real-time 3D multiplayer gameplay using Three.js
+- Two player roles: Hunter and Survivor
+- 3D maze environment with obstacles and walls
+- Key collection and escape mechanics
+- Real-time player movement and interactions
+- Web-based 3D interface
 - WebSocket for real-time updates
-- Customizable avatars
-- Special items (speed boost, time boost, treasure radar, obstacle breaker)
-- Timer feature (5-minute gameplay)
-- Score system
+- Customizable avatars for both roles
+- 5-minute gameplay timer
+- Win/lose conditions for both roles
+
+## Game Rules
+
+### Survivors
+- Collect all keys (3 keys) scattered in the maze
+- Escape through the designated escape point
+- Avoid being caught by the Hunter
+- Win by escaping with all keys before time runs out
+
+### Hunters
+- Catch Survivors before they escape
+- Win by catching all Survivors or when time runs out
+
+### General Rules
+- The game map is a 17x17 grid (coordinates from -8 to 8)
+- Players start at position [0, 0]
+- The game progresses with a 5-minute timer
+- Players can move using arrow keys
+- The map contains walls and obstacles that block movement
+- The escape point is randomly placed on the outer edge of the maze
 
 ## Requirements
 
 - Ruby 3.4.0 or later
 - Bundler
+- Modern web browser with WebGL support
 
 ## Installation
 
@@ -35,14 +56,14 @@ bundle install
 
 ## Running the Game
 
-1. Start the game server:
+1. Start the game server (DRb server on port 8787):
 ```bash
 ruby game_server.rb
 ```
 
-2. In a new terminal, start the web server:
+2. In a new terminal, start the web server (port 4567):
 ```bash
-bundle exec rackup -s puma -p 4567
+bundle exec rackup
 ```
 
 3. Open your browser and navigate to:
@@ -50,51 +71,46 @@ bundle exec rackup -s puma -p 4567
 http://localhost:4567
 ```
 
-4. (Optional) To use the console client, run in another terminal:
-```bash
-ruby game_client.rb
-```
-
 ## How to Play
 
-### Web Interface
-1. Enter your name and choose a role (Explorer or Engineer)
-2. Select an avatar
-3. Click the "Join Game" button to enter the game
-4. Use the arrow buttons on screen to move around the map
-5. Explorers can find treasures (💎)
-6. Engineers can clear obstacles (🪨, 🌳, 💧)
-7. Collect special items (⚡, ⏰, 🔍, 💥) for bonuses
+1. Enter your name
+2. Choose your role:
+   - Hunter: Try to catch Survivors
+   - Survivor: Collect keys and escape
+3. Select an avatar:
+   - Hunters: Ghost, Zombie, or Vampire
+   - Survivors: Person, Man, or Woman
+4. Click "Join Game" to enter the game
+5. Use arrow keys to move:
+   - ↑: Move forward
+   - ↓: Move backward
+   - ←: Turn left
+   - →: Turn right
+6. As a Survivor:
+   - Collect all 3 keys (💎)
+   - Find the escape point
+   - Avoid the Hunter
+7. As a Hunter:
+   - Catch Survivors
+   - Prevent them from escaping
 
-### Console Client
-1. Enter your name and choose a role (explorer/engineer)
-2. Use the arrow keys to move around the map
-3. Press 'q' to quit the game
+## Technical Details
 
-## Game Rules
-
-- The game map is a 21x21 grid (coordinates from -10 to 10)
-- Players start at position [0, 0]
-- Treasures can only be found by Explorers
-- Obstacles can only be cleared by Engineers
-- The game progresses with a 5-minute timer
-- The map contains 5 treasures and 8 obstacles
-- Special items provide bonus effects when collected:
-  - ⚡ Speed Boost: Move twice as fast for 10 seconds
-  - ⏰ Time Boost: Add 30 seconds to the timer
-  - 🔍 Treasure Radar: See all treasures on the map for 15 seconds
-  - 💥 Obstacle Breaker: Clear all obstacles in a 3x3 area at once
-- The game is won when all treasures are found and all obstacles are cleared
-- The game is over when the timer reaches zero
-
-## Libraries Used
-
-- drb: Distributed Ruby object system
-- colorize: Add colors to console output
+### Libraries Used
+- drb: Distributed Ruby object system for server-client communication
 - sinatra: Web application framework
-- faye-websocket: WebSocket support
-- json: JSON data processing
+- sinatra-contrib: Additional Sinatra functionality
+- faye-websocket: WebSocket support for real-time updates
+- three.js: 3D graphics rendering
 - puma: Web server
+- rackup: Rack server launcher
+
+### Architecture
+- Game Server (Ruby/DRb): Manages game state, player positions, and game logic
+  - Runs on port 8787
+- Web Server (Sinatra): Serves the web interface and handles WebSocket connections
+  - Runs on port 4567
+- Client (JavaScript/Three.js): Renders 3D graphics and handles user input
 
 ## License
 
