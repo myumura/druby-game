@@ -120,6 +120,7 @@
       obstacles: [],
       escape_point: [0, 0]
     };
+    let playerAvatars = {}; // プレイヤーのアバターオブジェクトを保存
 
     // キーボード制御
     document.addEventListener('keydown', function(e) {
@@ -344,10 +345,36 @@
       const restartButton = document.getElementById('restart-button');
       
       if (gameState && gameState.game_state) {
+        let playersInfo = '';
+        if (gameState.players) {
+          const hunters = Object.entries(gameState.players).filter(([name, data]) => data.role === 'hunter');
+          const survivors = Object.entries(gameState.players).filter(([name, data]) => data.role === 'survivor');
+          
+          playersInfo += '<h4>プレイヤー</h4>';
+          
+          if (hunters.length > 0) {
+            playersInfo += '<p style="color: #ff6666;">ハンター:</p>';
+            hunters.forEach(([name, data]) => {
+              const status = data.caught ? ' (捕獲済み)' : data.escaped ? ' (脱出済み)' : '';
+              playersInfo += `<span style="margin-left: 10px;">• ${name} (${data.avatar})${status}</span><br>`;
+            });
+          }
+          
+          if (survivors.length > 0) {
+            playersInfo += '<p style="color: #66ff66;">サバイバー:</p>';
+            survivors.forEach(([name, data]) => {
+              const status = data.caught ? ' (捕まった)' : data.escaped ? ' (脱出済み)' : '';
+              const keys = data.keys_collected ? ` [鍵: ${data.keys_collected}]` : '';
+              playersInfo += `<span style="margin-left: 10px;">• ${name} (${data.avatar})${keys}${status}</span><br>`;
+            });
+          }
+        }
+        
         statusDiv.innerHTML = `
           <h3>Game Status</h3>
           <p>Keys Found: ${gameState.game_state.keys_found}/${gameState.game_state.total_keys}</p>
           <p>Time Remaining: ${Math.floor(gameState.game_state.time_remaining / 60)}:${(gameState.game_state.time_remaining % 60).toString().padStart(2, '0')}</p>
+          ${playersInfo}
         `;
 
         // ゲームが開始されている場合、restartボタンを表示
@@ -406,6 +433,9 @@
         // プレイヤーの位置をリセット
         player.position = { x: 0.5, y: 0, z: 0.5 };
         player.rotation = { y: 0 };
+        
+        // プレイヤーアバターをクリア
+        playerAvatars = {};
       }
     }
 
@@ -495,6 +525,9 @@
               gameState = data.state;
             }
 
+            // プレイヤーアバターを更新
+            updatePlayerAvatars();
+
             updateGameState();
 
             // 脱出可能な場合、メッセージを表示
@@ -568,6 +601,130 @@
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
+
+    // プレイヤーアバターの作成
+    function createPlayerAvatar(avatarType, role) {
+      const avatarGroup = new THREE.Group();
+      
+      // 基本的な体の形状
+      const bodyGeometry = new THREE.CylinderGeometry(0.2, 0.2, 1.2, 8);
+      let bodyMaterial;
+      
+      // ロールとアバタータイプに応じて色を設定
+      if (role === 'hunter') {
+        switch(avatarType) {
+          case 'ghost':
+            bodyMaterial = new THREE.MeshPhongMaterial({ 
+              color: 0xffffff, 
+              transparent: true, 
+              opacity: 0.7 
+            });
+            break;
+          case 'zombie':
+            bodyMaterial = new THREE.MeshPhongMaterial({ color: 0x228B22 });
+            break;
+          case 'vampire':
+            bodyMaterial = new THREE.MeshPhongMaterial({ color: 0x8B0000 });
+            break;
+          default:
+            bodyMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+        }
+      } else {
+        switch(avatarType) {
+          case 'person':
+            bodyMaterial = new THREE.MeshPhongMaterial({ color: 0x0000ff });
+            break;
+          case 'man':
+            bodyMaterial = new THREE.MeshPhongMaterial({ color: 0x4169E1 });
+            break;
+          case 'woman':
+            bodyMaterial = new THREE.MeshPhongMaterial({ color: 0xFF69B4 });
+            break;
+          default:
+            bodyMaterial = new THREE.MeshPhongMaterial({ color: 0x0000ff });
+        }
+      }
+      
+      const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+      body.position.y = 0.6;
+      body.castShadow = true;
+      avatarGroup.add(body);
+      
+      // 頭部
+      const headGeometry = new THREE.SphereGeometry(0.15, 16, 16);
+      const headMaterial = new THREE.MeshPhongMaterial({ 
+        color: role === 'hunter' ? 0xffcccc : 0xffddaa 
+      });
+      const head = new THREE.Mesh(headGeometry, headMaterial);
+      head.position.y = 1.35;
+      head.castShadow = true;
+      avatarGroup.add(head);
+      
+      // 名前表示用のテキスト（簡易版として色付きの球体を頭上に配置）
+      const nameIndicatorGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+      const nameIndicatorMaterial = new THREE.MeshPhongMaterial({ 
+        color: role === 'hunter' ? 0xff0000 : 0x00ff00,
+        emissive: role === 'hunter' ? 0x440000 : 0x004400
+      });
+      const nameIndicator = new THREE.Mesh(nameIndicatorGeometry, nameIndicatorMaterial);
+      nameIndicator.position.y = 1.7;
+      avatarGroup.add(nameIndicator);
+      
+      return avatarGroup;
+    }
+
+    // プレイヤーアバターの更新
+    function updatePlayerAvatars() {
+      if (!gameState.players) return;
+      
+      // 現在のプレイヤーリストを取得
+      const currentPlayers = Object.keys(gameState.players);
+      
+      // 削除されたプレイヤーのアバターを削除
+      Object.keys(playerAvatars).forEach(avatarPlayerName => {
+        if (!currentPlayers.includes(avatarPlayerName)) {
+          scene.remove(playerAvatars[avatarPlayerName]);
+          delete playerAvatars[avatarPlayerName];
+        }
+      });
+      
+      // 各プレイヤーのアバターを更新
+      Object.entries(gameState.players).forEach(([name, playerData]) => {
+        // 自分自身のアバターは表示しない
+        if (name === playerName) return;
+        
+        // 新しいプレイヤーのアバターを作成
+        if (!playerAvatars[name]) {
+          console.log(`Creating avatar for player: ${name} (${playerData.role}, ${playerData.avatar})`);
+          playerAvatars[name] = createPlayerAvatar(playerData.avatar, playerData.role);
+          scene.add(playerAvatars[name]);
+        }
+        
+        // アバターの位置を更新
+        if (playerData.position) {
+          playerAvatars[name].position.set(
+            playerData.position[0],
+            0,
+            playerData.position[1]
+          );
+          playerAvatars[name].rotation.y = playerData.rotation || 0;
+        }
+        
+        // 捕まったプレイヤーや脱出したプレイヤーの表示を変更
+        if (playerData.caught) {
+          playerAvatars[name].visible = false;
+        } else if (playerData.escaped) {
+          // 脱出したプレイヤーは緑色に光らせる
+          playerAvatars[name].children.forEach(child => {
+            if (child.material) {
+              child.material.emissive = new THREE.Color(0x004400);
+            }
+          });
+        } else {
+          playerAvatars[name].visible = true;
+        }
+      });
+    }
 
     // 迷路の生成
     function generateMaze() {
@@ -775,4 +932,4 @@
     }
   </script>
 </body>
-</html> 
+</html>
