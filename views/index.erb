@@ -729,14 +729,82 @@
     // 迷路の生成
     function generateMaze() {
       const wallGeometry = new THREE.BoxGeometry(1, 4, 1);
+      
+      // 壁のテクスチャを作成（レンガ模様）
+      const wallCanvas = document.createElement('canvas');
+      wallCanvas.width = 256;
+      wallCanvas.height = 256;
+      const wallCtx = wallCanvas.getContext('2d');
+      
+      // レンガの背景色
+      wallCtx.fillStyle = '#8B4513';
+      wallCtx.fillRect(0, 0, 256, 256);
+      
+      // レンガのパターンを描画
+      wallCtx.fillStyle = '#A0522D';
+      wallCtx.strokeStyle = '#654321';
+      wallCtx.lineWidth = 2;
+      
+      const brickWidth = 64;
+      const brickHeight = 32;
+      
+      for (let y = 0; y < 256; y += brickHeight) {
+        for (let x = 0; x < 256; x += brickWidth) {
+          const offsetX = (Math.floor(y / brickHeight) % 2) * (brickWidth / 2);
+          const brickX = (x + offsetX) % 256;
+          
+          wallCtx.fillRect(brickX, y, brickWidth - 2, brickHeight - 2);
+          wallCtx.strokeRect(brickX, y, brickWidth - 2, brickHeight - 2);
+        }
+      }
+      
+      const wallTexture = new THREE.CanvasTexture(wallCanvas);
+      wallTexture.wrapS = THREE.RepeatWrapping;
+      wallTexture.wrapT = THREE.RepeatWrapping;
+      wallTexture.repeat.set(1, 2);
+      
       const wallMaterial = new THREE.MeshPhongMaterial({ 
-        color: 0x808080,
-        shininess: 30
+        map: wallTexture,
+        shininess: 10
       });
+      
       const floorGeometry = new THREE.PlaneGeometry(100, 100);
+      
+      // 床のテクスチャを作成（石畳模様）
+      const floorCanvas = document.createElement('canvas');
+      floorCanvas.width = 256;
+      floorCanvas.height = 256;
+      const floorCtx = floorCanvas.getContext('2d');
+      
+      // 石畳の背景色
+      floorCtx.fillStyle = '#696969';
+      floorCtx.fillRect(0, 0, 256, 256);
+      
+      // 石畳のパターンを描画
+      floorCtx.strokeStyle = '#2F4F4F';
+      floorCtx.lineWidth = 3;
+      
+      const stoneSize = 32;
+      
+      for (let y = 0; y < 256; y += stoneSize) {
+        for (let x = 0; x < 256; x += stoneSize) {
+          // 各石に少し異なる色を付ける
+          const variation = Math.random() * 0.3 - 0.15;
+          const gray = Math.floor(105 + variation * 50);
+          floorCtx.fillStyle = `rgb(${gray}, ${gray}, ${gray})`;
+          floorCtx.fillRect(x + 1, y + 1, stoneSize - 2, stoneSize - 2);
+          floorCtx.strokeRect(x, y, stoneSize, stoneSize);
+        }
+      }
+      
+      const floorTexture = new THREE.CanvasTexture(floorCanvas);
+      floorTexture.wrapS = THREE.RepeatWrapping;
+      floorTexture.wrapT = THREE.RepeatWrapping;
+      floorTexture.repeat.set(20, 20);
+      
       const floorMaterial = new THREE.MeshPhongMaterial({ 
-        color: 0x404040,
-        shininess: 30
+        map: floorTexture,
+        shininess: 5
       });
 
       // 床の追加
@@ -894,16 +962,12 @@
 
       // 迷路の境界を追加
       const boundaryGeometry = new THREE.BoxGeometry(1, 4, 1);
-      const boundaryMaterial = new THREE.MeshPhongMaterial({ 
-        color: 0x404040,
-        shininess: 30
-      });
 
-      // 外壁を追加
+      // 外壁を追加（内壁と同じレンガテクスチャを使用）
       for (let x = -8; x <= 8; x++) {
         for (let z = -8; z <= 8; z++) {
           if (x === -8 || x === 8 || z === -8 || z === 8) {
-            const wall = new THREE.Mesh(boundaryGeometry, boundaryMaterial);
+            const wall = new THREE.Mesh(boundaryGeometry, wallMaterial);
             wall.position.set(x, 1, z);
             wall.castShadow = true;
             wall.receiveShadow = true;
