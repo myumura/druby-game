@@ -58,7 +58,7 @@ bundle install
 
 1. Start the game server (DRb server on port 8787):
 ```bash
-ruby game_server.rb
+./bin/game_server
 ```
 
 2. In a new terminal, start the web server (port 4567):

@@ -1,2 +1,2 @@
-require_relative './web_game'
-run WebGame 
+require_relative './app/controllers/web_application'
+run WebApplication
