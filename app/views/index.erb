@@ -165,9 +165,6 @@
           ambient: createAmbientSound()
         };
 
-        // BGMの開始
-        startBackgroundMusic();
-        
         // 環境音の開始（少し遅らせて開始）
         setTimeout(() => {
           if (sounds.ambient) {
@@ -330,45 +327,93 @@
     function startBackgroundMusic() {
       if (!audioContext || isMuted) return;
       
-      // シンプルなアンビエント BGM
-      const playBGMNote = (frequency, duration, delay = 0) => {
+      // ポップで明るいBGM
+      const playBGMNote = (frequency, duration, delay = 0, noteType = 'triangle') => {
         setTimeout(() => {
           if (isMuted) return;
           
           const oscillator = audioContext.createOscillator();
           const gainNode = audioContext.createGain();
-          const filter = audioContext.createBiquadFilter();
           
-          oscillator.connect(filter);
-          filter.connect(gainNode);
+          oscillator.connect(gainNode);
           gainNode.connect(audioContext.destination);
           
-          oscillator.type = 'sine';
+          oscillator.type = noteType;
           oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
           
-          filter.type = 'lowpass';
-          filter.frequency.setValueAtTime(800, audioContext.currentTime);
-          
           gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-          gainNode.gain.linearRampToValueAtTime(0.08, audioContext.currentTime + 0.5);
-          gainNode.gain.linearRampToValueAtTime(0.08, audioContext.currentTime + duration - 0.5);
-          gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + duration);
+          gainNode.gain.linearRampToValueAtTime(0.12, audioContext.currentTime + 0.1);
+          gainNode.gain.linearRampToValueAtTime(0.12, audioContext.currentTime + duration - 0.2);
+          gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
           
           oscillator.start(audioContext.currentTime);
           oscillator.stop(audioContext.currentTime + duration);
         }, delay);
       };
       
-      // BGMのメロディーパターン
+      // 明るく楽しいメロディーパターン
       const bgmPattern = () => {
-        const notes = [220, 246.94, 261.63, 293.66]; // A3, B3, C4, D4
-        notes.forEach((note, index) => {
-          playBGMNote(note, 4, index * 4000);
-          playBGMNote(note * 0.5, 4, index * 4000 + 100); // オクターブ下
+        // C Major スケールの明るいメロディー
+        const melody1 = [
+          { note: 523.25, duration: 0.8 }, // C5
+          { note: 587.33, duration: 0.8 }, // D5
+          { note: 659.25, duration: 0.8 }, // E5
+          { note: 698.46, duration: 0.8 }, // F5
+          { note: 783.99, duration: 1.2 }, // G5
+          { note: 659.25, duration: 0.8 }, // E5
+          { note: 523.25, duration: 1.2 }  // C5
+        ];
+        
+        const melody2 = [
+          { note: 783.99, duration: 0.8 }, // G5
+          { note: 880.00, duration: 0.8 }, // A5
+          { note: 783.99, duration: 0.8 }, // G5
+          { note: 659.25, duration: 0.8 }, // E5
+          { note: 698.46, duration: 1.2 }, // F5
+          { note: 587.33, duration: 0.8 }, // D5
+          { note: 523.25, duration: 1.2 }  // C5
+        ];
+        
+        // ベースライン（低音）
+        const bassLine = [
+          { note: 261.63, duration: 2.4 }, // C4
+          { note: 329.63, duration: 2.4 }, // E4
+          { note: 349.23, duration: 2.4 }, // F4
+          { note: 392.00, duration: 2.4 }  // G4
+        ];
+        
+        let currentTime = 0;
+        
+        // メロディー1を再生
+        melody1.forEach((noteData, index) => {
+          playBGMNote(noteData.note, noteData.duration, currentTime * 1000, 'triangle');
+          currentTime += noteData.duration;
         });
         
-        // 16秒後に繰り返し
-        setTimeout(bgmPattern, 16000);
+        // 少し間を空けてメロディー2を再生
+        currentTime += 0.5;
+        const melody2StartTime = currentTime;
+        
+        melody2.forEach((noteData, index) => {
+          playBGMNote(noteData.note, noteData.duration, currentTime * 1000, 'triangle');
+          currentTime += noteData.duration;
+        });
+        
+        // ベースラインを並行して再生
+        let bassTime = 0;
+        bassLine.forEach((noteData, index) => {
+          playBGMNote(noteData.note, noteData.duration, bassTime * 1000, 'sine');
+          bassTime += noteData.duration;
+        });
+        
+        // ベースライン2回目
+        bassLine.forEach((noteData, index) => {
+          playBGMNote(noteData.note, noteData.duration, (bassTime + melody2StartTime) * 1000, 'sine');
+          bassTime += noteData.duration;
+        });
+        
+        // 全体の長さ後に繰り返し
+        setTimeout(bgmPattern, (currentTime + 2) * 1000);
       };
       
       bgmPattern();
