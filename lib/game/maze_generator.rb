@@ -106,24 +106,26 @@ class MazeGenerator
 
   def self.create_central_rooms(obstacles)
     # 中央に2つの部屋を作る
-    # 部屋1: (-2,-2) to (0,0)
-    (-2..0).each do |x|
-      obstacles << { position: [x, -2], type: 'wall' }
-      obstacles << { position: [x, 0], type: 'wall' }
+    # プレイヤーの初期位置[0,0]周辺は空けておく
+    
+    # 部屋1: (-3,-3) to (-1,-1) - 初期位置から離れた場所
+    (-3..-1).each do |x|
+      obstacles << { position: [x, -3], type: 'wall' }
+      obstacles << { position: [x, -1], type: 'wall' }
     end
-    [-2, 0].each do |y|
-      obstacles << { position: [-2, y], type: 'wall' }
-      obstacles << { position: [0, y], type: 'wall' }
+    [-3, -1].each do |y|
+      obstacles << { position: [-3, y], type: 'wall' }
+      obstacles << { position: [-1, y], type: 'wall' }
     end
     
-    # 部屋2: (1,1) to (3,3)
-    (1..3).each do |x|
-      obstacles << { position: [x, 1], type: 'wall' }
-      obstacles << { position: [x, 3], type: 'wall' }
+    # 部屋2: (2,2) to (4,4) - 初期位置から離れた場所
+    (2..4).each do |x|
+      obstacles << { position: [x, 2], type: 'wall' }
+      obstacles << { position: [x, 4], type: 'wall' }
     end
-    [1, 3].each do |y|
-      obstacles << { position: [1, y], type: 'wall' }
-      obstacles << { position: [3, y], type: 'wall' }
+    [2, 4].each do |y|
+      obstacles << { position: [2, y], type: 'wall' }
+      obstacles << { position: [4, y], type: 'wall' }
     end
   end
 
@@ -193,8 +195,10 @@ class MazeGenerator
       
       # 既存の障害物と重複しないかチェック
       next if obstacles.any? { |obs| obs[:position] == [x, y] }
-      # スタート地点の近くは避ける
+      # スタート地点[0,0]の近くは確実に避ける（より広い範囲）
       next if x.abs <= 1 && y.abs <= 1
+      # 初期位置[0,0]そのものは絶対に避ける
+      next if x == 0 && y == 0
       
       # 30%の確率で配置
       if rand < 0.3
