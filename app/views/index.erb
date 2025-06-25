@@ -70,6 +70,28 @@
     #restart-button:hover {
       background-color: #45a049;
     }
+    #mute-button {
+      position: absolute;
+      top: 70px;
+      right: 20px;
+      padding: 10px 20px;
+      background-color: #FF6B6B;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      display: none;
+      z-index: 100;
+    }
+    #mute-button:hover {
+      background-color: #FF5252;
+    }
+    #mute-button.muted {
+      background-color: #666;
+    }
+    #mute-button.muted:hover {
+      background-color: #555;
+    }
   </style>
 </head>
 <body>
@@ -78,6 +100,7 @@
       <div id="status"></div>
     </div>
     <button id="restart-button" onclick="restartGame()">Restart Game</button>
+    <button id="mute-button" onclick="toggleMute()">🔊 音響</button>
     <div id="login-form">
       <input type="text" id="player-name" placeholder="Enter your name">
       <select id="player-role">
@@ -122,6 +145,251 @@
     };
     let playerAvatars = {}; // プレイヤーのアバターオブジェクトを保存
 
+    // 音響システム
+    let audioContext;
+    let sounds = {};
+    let bgmSource;
+    let isMuted = false;
+
+    // 音響システムの初期化
+    function initAudioSystem() {
+      try {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // 効果音の生成（プロシージャル音響）
+        sounds = {
+          footstep: createFootstepSound(),
+          keyCollect: createKeyCollectSound(),
+          escape: createEscapeSound(),
+          caught: createCaughtSound(),
+          ambient: createAmbientSound()
+        };
+
+        // BGMの開始
+        startBackgroundMusic();
+        
+        // 環境音の開始（少し遅らせて開始）
+        setTimeout(() => {
+          if (sounds.ambient) {
+            sounds.ambient();
+          }
+        }, 5000);
+        
+        console.log('音響システムが初期化されました');
+      } catch (error) {
+        console.warn('音響システムの初期化に失敗しました:', error);
+      }
+    }
+
+    // 足音の生成
+    function createFootstepSound() {
+      return () => {
+        if (!audioContext || isMuted) return;
+        
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        const filter = audioContext.createBiquadFilter();
+        
+        oscillator.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.type = 'brown';
+        oscillator.frequency.setValueAtTime(80 + Math.random() * 40, audioContext.currentTime);
+        
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(200, audioContext.currentTime);
+        
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.1, audioContext.currentTime + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.1);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.1);
+      };
+    }
+
+    // 鍵取得音の生成
+    function createKeyCollectSound() {
+      return () => {
+        if (!audioContext || isMuted) return;
+        
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // C5
+        oscillator.frequency.linearRampToValueAtTime(783.99, audioContext.currentTime + 0.1); // G5
+        oscillator.frequency.linearRampToValueAtTime(1046.50, audioContext.currentTime + 0.2); // C6
+        
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.3);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.3);
+      };
+    }
+
+    // 脱出成功音の生成
+    function createEscapeSound() {
+      return () => {
+        if (!audioContext || isMuted) return;
+        
+        // 勝利のファンファーレ
+        const notes = [523.25, 659.25, 783.99, 1046.50]; // C-E-G-C
+        
+        notes.forEach((freq, index) => {
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+          
+          oscillator.type = 'triangle';
+          oscillator.frequency.setValueAtTime(freq, audioContext.currentTime + index * 0.2);
+          
+          gainNode.gain.setValueAtTime(0, audioContext.currentTime + index * 0.2);
+          gainNode.gain.linearRampToValueAtTime(0.4, audioContext.currentTime + index * 0.2 + 0.01);
+          gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + index * 0.2 + 0.5);
+          
+          oscillator.start(audioContext.currentTime + index * 0.2);
+          oscillator.stop(audioContext.currentTime + index * 0.2 + 0.5);
+        });
+      };
+    }
+
+    // 捕獲音の生成
+    function createCaughtSound() {
+      return () => {
+        if (!audioContext || isMuted) return;
+        
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        const filter = audioContext.createBiquadFilter();
+        
+        oscillator.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.setValueAtTime(220, audioContext.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(55, audioContext.currentTime + 1);
+        
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1000, audioContext.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(100, audioContext.currentTime + 1);
+        
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 1);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 1);
+      };
+    }
+
+    // 環境音の生成
+    function createAmbientSound() {
+      return () => {
+        if (!audioContext || isMuted) return;
+        
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        const filter = audioContext.createBiquadFilter();
+        
+        oscillator.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(60 + Math.random() * 20, audioContext.currentTime);
+        
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(200, audioContext.currentTime);
+        
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.05, audioContext.currentTime + 2);
+        gainNode.gain.linearRampToValueAtTime(0.05, audioContext.currentTime + 8);
+        gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 10);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 10);
+        
+        // 10秒後に再度再生
+        setTimeout(() => {
+          if (!isMuted) sounds.ambient();
+        }, 10000);
+      };
+    }
+
+    // BGMの開始
+    function startBackgroundMusic() {
+      if (!audioContext || isMuted) return;
+      
+      // シンプルなアンビエント BGM
+      const playBGMNote = (frequency, duration, delay = 0) => {
+        setTimeout(() => {
+          if (isMuted) return;
+          
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+          const filter = audioContext.createBiquadFilter();
+          
+          oscillator.connect(filter);
+          filter.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+          
+          oscillator.type = 'sine';
+          oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+          
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(800, audioContext.currentTime);
+          
+          gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+          gainNode.gain.linearRampToValueAtTime(0.08, audioContext.currentTime + 0.5);
+          gainNode.gain.linearRampToValueAtTime(0.08, audioContext.currentTime + duration - 0.5);
+          gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + duration);
+          
+          oscillator.start(audioContext.currentTime);
+          oscillator.stop(audioContext.currentTime + duration);
+        }, delay);
+      };
+      
+      // BGMのメロディーパターン
+      const bgmPattern = () => {
+        const notes = [220, 246.94, 261.63, 293.66]; // A3, B3, C4, D4
+        notes.forEach((note, index) => {
+          playBGMNote(note, 4, index * 4000);
+          playBGMNote(note * 0.5, 4, index * 4000 + 100); // オクターブ下
+        });
+        
+        // 16秒後に繰り返し
+        setTimeout(bgmPattern, 16000);
+      };
+      
+      bgmPattern();
+    }
+
+    // 音響の切り替え
+    function toggleMute() {
+      isMuted = !isMuted;
+      const muteButton = document.getElementById('mute-button');
+      
+      if (isMuted) {
+        muteButton.textContent = '🔇 ミュート';
+        muteButton.classList.add('muted');
+      } else {
+        muteButton.textContent = '🔊 音響';
+        muteButton.classList.remove('muted');
+      }
+      
+      console.log(isMuted ? '音響をミュートしました' : '音響のミュートを解除しました');
+    }
+
     // キーボード制御
     document.addEventListener('keydown', function(e) {
       switch(e.key) {
@@ -136,6 +404,13 @@
           break;
         case 'ArrowRight':
           keys['right'] = true;
+          break;
+        case 'm':
+        case 'M':
+          // Mキーでミュート切り替え
+          if (audioContext) {
+            toggleMute();
+          }
           break;
       }
     });
@@ -200,14 +475,19 @@
       const previousPosition = { ...player.position };
       const previousRotation = { ...player.rotation };
 
+      // 移動フラグ
+      let moved = false;
+
       // 移動と回転の処理
       if (keys['up']) {
         player.position.x += Math.sin(player.rotation.y) * moveSpeed;
         player.position.z += Math.cos(player.rotation.y) * moveSpeed;
+        moved = true;
       }
       if (keys['down']) {
         player.position.x -= Math.sin(player.rotation.y) * moveSpeed;
         player.position.z -= Math.cos(player.rotation.y) * moveSpeed;
+        moved = true;
       }
       if (keys['left']) {
         player.rotation.y += rotateSpeed;
@@ -240,6 +520,9 @@
       if (collision) {
         player.position = previousPosition;
         player.rotation = previousRotation;
+      } else if (moved && sounds.footstep) {
+        // 移動時に足音を再生（衝突していない場合のみ）
+        sounds.footstep();
       }
 
       // カメラの位置と回転を更新
@@ -377,9 +660,10 @@
           ${playersInfo}
         `;
 
-        // ゲームが開始されている場合、restartボタンを表示
+        // ゲームが開始されている場合、restartボタンとミュートボタンを表示
         if (gameState.game_state.game_started) {
           restartButton.style.display = 'block';
+          document.getElementById('mute-button').style.display = 'block';
         }
       }
     }
@@ -454,6 +738,7 @@
           case 'register_success':
             document.getElementById('login-form').classList.add('hidden');
             initThreeJS();
+            initAudioSystem(); // 音響システムの初期化
             generateMaze();
             // プレイヤーの位置とカメラを初期化
             player.position = { x: 0.5, y: 0, z: 0.5 };
@@ -481,6 +766,11 @@
               data.state.keys.forEach(newKey => {
                 const existingKey = gameState.keys.find(k => k.id === newKey.id);
                 if (existingKey && !existingKey.found && newKey.found) {
+                  // 鍵取得音を再生
+                  if (sounds.keyCollect) {
+                    sounds.keyCollect();
+                  }
+                  
                   // 取得された鍵を非表示にする
                   scene.children.forEach(child => {
                     if (child.userData.keyId === newKey.id) {
@@ -541,6 +831,12 @@
               const statusDiv = document.getElementById('status');
               if (gameState.game_state.winner === 'survivors') {
                 statusDiv.innerHTML = '<h2 style="color: green;">脱出成功！</h2>';
+                
+                // 脱出成功音を再生
+                if (sounds.escape) {
+                  sounds.escape();
+                }
+                
                 // 脱出成功時のエフェクト
                 const successGeometry = new THREE.SphereGeometry(5, 32, 32);
                 const successMaterial = new THREE.MeshPhongMaterial({
@@ -556,6 +852,11 @@
                 cancelAnimationFrame(animationId);
               } else {
                 statusDiv.innerHTML = '<h2 style="color: red;">ゲームオーバー</h2>';
+                
+                // 捕獲音を再生
+                if (sounds.caught) {
+                  sounds.caught();
+                }
               }
             }
             break;
