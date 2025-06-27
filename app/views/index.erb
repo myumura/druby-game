@@ -178,31 +178,79 @@
       }
     }
 
-    // 足音の生成
+    // 足音の生成（リアルなトコトコ音に変更）
+    let footstepAlternate = false; // 左右の足音を交互に再生するためのフラグ
+    let lastFootstepTime = 0; // 最後に足音を再生した時間
+    
     function createFootstepSound() {
       return () => {
         if (!audioContext || isMuted) return;
         
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        const filter = audioContext.createBiquadFilter();
+        // 足音の間隔を制限（最低150ms間隔）
+        const currentTime = audioContext.currentTime;
+        if (currentTime - lastFootstepTime < 0.1) {
+          return; // 間隔が短すぎる場合は再生しない
+        }
+        lastFootstepTime = currentTime;
         
-        oscillator.connect(filter);
-        filter.connect(gainNode);
-        gainNode.connect(audioContext.destination);
+        // シンプルで短いトコトコ音を作成する関数
+        const createSimpleFootstep = (pitch, volume) => {
+          // 短いクリック音
+          const osc = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          const filter = audioContext.createBiquadFilter();
+          
+          osc.connect(filter);
+          filter.connect(gain);
+          gain.connect(audioContext.destination);
+          
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(pitch, audioContext.currentTime);
+          
+          // ハイパスフィルターで軽やかな音に
+          filter.type = 'highpass';
+          filter.frequency.setValueAtTime(pitch * 0.8, audioContext.currentTime);
+          filter.Q.setValueAtTime(1, audioContext.currentTime);
+          
+          // 非常に短い音（トコトコ感を出すため）
+          gain.gain.setValueAtTime(0, audioContext.currentTime);
+          gain.gain.linearRampToValueAtTime(volume * 0.1, audioContext.currentTime + 0.005);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.04);
+          
+          osc.start(audioContext.currentTime);
+          osc.stop(audioContext.currentTime + 0.05);
+          
+          // 軽い「パチッ」という音を追加
+          setTimeout(() => {
+            const clickOsc = audioContext.createOscillator();
+            const clickGain = audioContext.createGain();
+            
+            clickOsc.connect(clickGain);
+            clickGain.connect(audioContext.destination);
+            
+            clickOsc.type = 'square';
+            clickOsc.frequency.setValueAtTime(pitch * 2, audioContext.currentTime);
+            
+            clickGain.gain.setValueAtTime(0, audioContext.currentTime);
+            clickGain.gain.linearRampToValueAtTime(volume * 0.05, audioContext.currentTime + 0.002);
+            clickGain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.02);
+            
+            clickOsc.start(audioContext.currentTime);
+            clickOsc.stop(audioContext.currentTime + 0.025);
+          }, 10);
+        };
         
-        oscillator.type = 'brown';
-        oscillator.frequency.setValueAtTime(80 + Math.random() * 40, audioContext.currentTime);
+        // 左右の足音を交互に再生してトコトコ感を演出
+        if (footstepAlternate) {
+          // 右足 - 「ト」の音
+          createSimpleFootstep(400 + Math.random() * 100, 1.0);
+        } else {
+          // 左足 - 「コ」の音
+          createSimpleFootstep(350 + Math.random() * 100, 0.9);
+        }
         
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(200, audioContext.currentTime);
-        
-        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.1, audioContext.currentTime + 0.01);
-        gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.1);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.1);
+        // 次回は反対の足音を再生
+        footstepAlternate = !footstepAlternate;
       };
     }
 
@@ -250,7 +298,7 @@
           oscillator.frequency.setValueAtTime(freq, audioContext.currentTime + index * 0.2);
           
           gainNode.gain.setValueAtTime(0, audioContext.currentTime + index * 0.2);
-          gainNode.gain.linearRampToValueAtTime(0.4, audioContext.currentTime + index * 0.2 + 0.01);
+          gainNode.gain.linearRampToValueAtTime(0.15, audioContext.currentTime + index * 0.2 + 0.01);
           gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + index * 0.2 + 0.5);
           
           oscillator.start(audioContext.currentTime + index * 0.2);
@@ -259,33 +307,36 @@
       };
     }
 
-    // 捕獲音の生成
+    // 捕獲音の生成（ゲームオーバー風の短い音）
     function createCaughtSound() {
       return () => {
         if (!audioContext || isMuted) return;
         
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        const filter = audioContext.createBiquadFilter();
+        // 短い「ポン」という音を3回連続で再生
+        const playGameOverNote = (frequency, delay, duration = 0.15) => {
+          setTimeout(() => {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.type = 'triangle';
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            
+            gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.08, audioContext.currentTime + 0.01);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration);
+          }, delay);
+        };
         
-        oscillator.connect(filter);
-        filter.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.type = 'sawtooth';
-        oscillator.frequency.setValueAtTime(220, audioContext.currentTime);
-        oscillator.frequency.exponentialRampToValueAtTime(55, audioContext.currentTime + 1);
-        
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(1000, audioContext.currentTime);
-        filter.frequency.exponentialRampToValueAtTime(100, audioContext.currentTime + 1);
-        
-        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.01);
-        gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 1);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 1);
+        // ゲームオーバーの下降音階（ド→ラ→ファ）
+        playGameOverNote(523.25, 0, 0.2);    // C5
+        playGameOverNote(440.00, 200, 0.2);  // A4
+        playGameOverNote(349.23, 400, 0.3);  // F4
       };
     }
 
