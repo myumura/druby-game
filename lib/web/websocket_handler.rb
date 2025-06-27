@@ -68,6 +68,7 @@ class WebSocketHandler
         type: 'register_success',
         role: role
       }))
+      broadcast_game_state
     else
       socket.send(JSON.generate({
         type: 'register_failed',
@@ -80,22 +81,26 @@ class WebSocketHandler
     name = data['name']
     position = data['position']
     rotation = data['rotation']
-    @game_server.move_player(name, position, rotation)
+    result = @game_server.move_player(name, position, rotation)
+    broadcast_game_state if result
   end
 
   def handle_collect_key(data)
     name = data['name']
     key_id = data['key_id']
-    @game_server.collect_key(name, key_id)
+    result = @game_server.collect_key(name, key_id)
+    broadcast_game_state if result
   end
 
   def handle_escape(data)
     name = data['name']
     position = data['position']
-    @game_server.escape(name, position)
+    result = @game_server.escape(name, position)
+    broadcast_game_state if result
   end
 
   def handle_reset
-    @game_server.reset
+    result = @game_server.reset
+    broadcast_game_state if result
   end
 end
