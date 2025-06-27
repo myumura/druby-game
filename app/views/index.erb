@@ -92,6 +92,38 @@
     #mute-button.muted:hover {
       background-color: #555;
     }
+    #caught-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(0, 0, 0, 0.8);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+    #caught-message {
+      background-color: rgba(255, 0, 0, 0.9);
+      padding: 30px;
+      border-radius: 15px;
+      border: 3px solid #ff0000;
+      box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
+    }
+    #caught-message h1 {
+      margin: 0 0 20px 0;
+      font-size: 3em;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+    }
+    #caught-message p {
+      margin: 10px 0;
+      font-size: 1.5em;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    }
   </style>
 </head>
 <body>
@@ -120,6 +152,15 @@
         </optgroup>
       </select>
       <button onclick="registerPlayer()">Join Game</button>
+    </div>
+    
+    <!-- 捕まった時のオーバーレイ -->
+    <div id="caught-overlay">
+      <div id="caught-message">
+        <h1>捕まりました！</h1>
+        <p>ハンターに捕獲されました</p>
+        <p>ゲームを観戦してください</p>
+      </div>
     </div>
   </div>
 
@@ -486,6 +527,33 @@
       console.log(isMuted ? '音響をミュートしました' : '音響のミュートを解除しました');
     }
 
+    // 捕まった時のオーバーレイを表示
+    function showCaughtOverlay() {
+      const overlay = document.getElementById('caught-overlay');
+      overlay.style.display = 'flex';
+      
+      // 捕獲音を再生
+      if (sounds.caught) {
+        sounds.caught();
+      }
+      
+      // 画面を暗くするエフェクト
+      if (renderer) {
+        renderer.domElement.style.filter = 'brightness(0.3) contrast(0.8)';
+      }
+    }
+
+    // 捕まった時のオーバーレイを隠す
+    function hideCaughtOverlay() {
+      const overlay = document.getElementById('caught-overlay');
+      overlay.style.display = 'none';
+      
+      // 画面のエフェクトを元に戻す
+      if (renderer) {
+        renderer.domElement.style.filter = 'none';
+      }
+    }
+
     // キーボード制御
     document.addEventListener('keydown', function(e) {
       switch(e.key) {
@@ -570,6 +638,14 @@
       const rotateSpeed = 0.05;
       const playerRadius = 0.2;
       const currentTime = Date.now();
+
+      // プレイヤーの状態をチェック（捕まったプレイヤーは移動不可）
+      if (gameState.players && gameState.players[playerName]) {
+        const currentPlayer = gameState.players[playerName];
+        if (currentPlayer.caught || currentPlayer.escaped) {
+          return; // 捕まったか脱出したプレイヤーは移動不可
+        }
+      }
 
       // 前回の位置を保存
       const previousPosition = { ...player.position };
@@ -889,6 +965,13 @@
                 player.position.z = serverPlayer.position[1];
                 player.rotation.y = serverPlayer.rotation;
               }
+              
+              // 捕まった状態をチェック
+              if (serverPlayer.caught && playerRole === 'survivor') {
+                showCaughtOverlay();
+              } else {
+                hideCaughtOverlay();
+              }
             }
             
             // 鍵の状態を更新
@@ -980,7 +1063,20 @@
 
                 // アニメーションを停止
                 cancelAnimationFrame(animationId);
+              } else if (gameState.game_state.winner === 'hunter') {
+                // ハンターの勝利時の表示を分ける
+                if (playerRole === 'hunter') {
+                  statusDiv.innerHTML = '<h2 style="color: orange;">ハンター勝利！全サバイバーを捕獲しました！</h2>';
+                } else {
+                  statusDiv.innerHTML = '<h2 style="color: red;">ゲームオーバー - ハンターに捕まりました</h2>';
+                }
+                
+                // 捕獲音を再生
+                if (sounds.caught) {
+                  sounds.caught();
+                }
               } else {
+                // その他の場合（時間切れなど）
                 statusDiv.innerHTML = '<h2 style="color: red;">ゲームオーバー</h2>';
                 
                 // 捕獲音を再生
