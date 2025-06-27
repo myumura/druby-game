@@ -850,13 +850,13 @@
 
       // 移動と回転の処理
       if (keys['up']) {
-        player.position.x += Math.sin(player.rotation.y) * moveSpeed;
-        player.position.z += Math.cos(player.rotation.y) * moveSpeed;
+        player.position.x -= Math.sin(player.rotation.y) * moveSpeed;
+        player.position.z -= Math.cos(player.rotation.y) * moveSpeed;
         moved = true;
       }
       if (keys['down']) {
-        player.position.x -= Math.sin(player.rotation.y) * moveSpeed;
-        player.position.z -= Math.cos(player.rotation.y) * moveSpeed;
+        player.position.x += Math.sin(player.rotation.y) * moveSpeed;
+        player.position.z += Math.cos(player.rotation.y) * moveSpeed;
         moved = true;
       }
       if (keys['left']) {
