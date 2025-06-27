@@ -12,6 +12,7 @@ class WebApplication < Sinatra::Base
 
   def self.initialize_game_connection
     settings.game_server = DRbObject.new_with_uri('druby://localhost:8787')
+    # settings.game_server = DRbObject.new_with_uri('druby://107.191.60.78:8787')
     settings.websocket_handler = WebSocketHandler.new(settings.game_server)
   end
 

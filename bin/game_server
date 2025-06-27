@@ -6,4 +6,6 @@ require_relative '../lib/game/server'
 server = GameServer.new
 DRb.start_service('druby://localhost:8787', server)
 puts "Game server started on druby://localhost:8787".green
+# DRb.start_service('druby://0.0.0.0:8787', server)
+# puts "Game server started on druby://0.0.0.0:8787".green
 DRb.thread.join
