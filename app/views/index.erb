@@ -1084,7 +1084,7 @@
           delete playerAvatars[avatarPlayerName];
         }
       });
-      
+
       // 各プレイヤーのアバターを更新
       Object.entries(gameState.players).forEach(([name, playerData]) => {
         // 自分自身のアバターは表示しない
@@ -1372,6 +1372,23 @@
           }
         }
       }
+
+      // 自分以外のプレイヤーのアバターを初期化
+      playerAvatars = {};
+      Object.keys(gameState.players).forEach(name => {
+        if (name !== playerName) {
+          const playerData = gameState.players[name];
+          playerAvatars[name] = createPlayerAvatar(playerData.avatar, playerData.role);
+          playerAvatars[name].position.set(
+            playerData.position ? playerData.position[0] : 0,
+            0,
+            playerData.position ? playerData.position[1] : 0
+          );
+          playerAvatars[name].rotation.y = playerData.rotation || 0;
+          scene.add(playerAvatars[name]);
+        }
+      }
+    )
 
       // アニメーションループ
       function animate() {
