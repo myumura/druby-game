@@ -562,10 +562,14 @@
     }
 
     // プレイヤーの移動を更新
+    let lastMoveTime = 0;
+    let lastSentPosition = { x: 0, z: 0, rotation: 0 };
+    
     function updatePlayerPosition() {
       const moveSpeed = 0.1;
       const rotateSpeed = 0.05;
-      const playerRadius = 0.2; // プレイヤーの半径
+      const playerRadius = 0.2;
+      const currentTime = Date.now();
 
       // 前回の位置を保存
       const previousPosition = { ...player.position };
@@ -573,6 +577,7 @@
 
       // 移動フラグ
       let moved = false;
+      let rotated = false;
 
       // 移動と回転の処理
       if (keys['up']) {
@@ -587,23 +592,31 @@
       }
       if (keys['left']) {
         player.rotation.y += rotateSpeed;
+        rotated = true;
       }
       if (keys['right']) {
         player.rotation.y -= rotateSpeed;
+        rotated = true;
+      }
+
+      // 移動や回転がない場合は早期リターン
+      if (!moved && !rotated) {
+        return;
       }
 
       // 壁との衝突判定
       let collision = false;
-      gameState.obstacles.forEach(obs => {
-        const dx = player.position.x - obs.position[0];
-        const dz = player.position.z - obs.position[1];
-        const distance = Math.sqrt(dx * dx + dz * dz);
-        
-        // 壁との距離が一定以下なら衝突
-        if (distance < playerRadius + 0.5) {
-          collision = true;
-        }
-      });
+      if (gameState.obstacles) {
+        gameState.obstacles.forEach(obs => {
+          const dx = player.position.x - obs.position[0];
+          const dz = player.position.z - obs.position[1];
+          const distance = Math.sqrt(dx * dx + dz * dz);
+          
+          if (distance < playerRadius + 0.5) {
+            collision = true;
+          }
+        });
+      }
 
       // 外壁との衝突判定
       const boundarySize = 8;
@@ -621,16 +634,16 @@
         sounds.footstep();
       }
 
-      // カメラの位置と回転を更新
-      camera.position.set(
-        player.position.x,
-        player.position.y + 1.6,
-        player.position.z
-      );
-      camera.rotation.y = player.rotation.y;
+      // カメラの位置と回転を更新（スムーズに）
+      updateCameraPosition();
 
-      // サーバーに位置を送信
-      if (ws && ws.readyState === WebSocket.OPEN) {
+      // サーバーに位置を送信（頻度を制限）
+      const positionChanged = Math.abs(player.position.x - lastSentPosition.x) > 0.05 ||
+                             Math.abs(player.position.z - lastSentPosition.z) > 0.05 ||
+                             Math.abs(player.rotation.y - lastSentPosition.rotation) > 0.1;
+      
+      if (ws && ws.readyState === WebSocket.OPEN && 
+          positionChanged && currentTime - lastMoveTime > 50) { // 50ms間隔で制限
         const message = {
           type: 'move',
           name: playerName,
@@ -638,7 +651,28 @@
           rotation: player.rotation.y
         };
         ws.send(JSON.stringify(message));
+        lastMoveTime = currentTime;
+        lastSentPosition = {
+          x: player.position.x,
+          z: player.position.z,
+          rotation: player.rotation.y
+        };
       }
+    }
+
+    // カメラ位置の更新を分離（スムーズな移動のため）
+    function updateCameraPosition() {
+      const targetX = player.position.x;
+      const targetY = player.position.y + 1.6;
+      const targetZ = player.position.z;
+      const targetRotationY = player.rotation.y;
+
+      // スムーズな補間を使用
+      const lerpFactor = 0.8;
+      camera.position.x += (targetX - camera.position.x) * lerpFactor;
+      camera.position.y += (targetY - camera.position.y) * lerpFactor;
+      camera.position.z += (targetZ - camera.position.z) * lerpFactor;
+      camera.rotation.y += (targetRotationY - camera.rotation.y) * lerpFactor;
     }
 
     // 鍵の取得判定
@@ -1390,23 +1424,6 @@
       }
     )
 
-      // アニメーションループ
-      function animate() {
-        requestAnimationFrame(animate);
-        renderer.render(scene, camera);
-      }
-      animate();
-
-      // ゲームループ
-      function gameLoop() {
-        requestAnimationFrame(gameLoop);
-        // プレイヤーの移動処理
-        if (keys.ArrowUp) movePlayer('up');
-        if (keys.ArrowDown) movePlayer('down');
-        if (keys.ArrowLeft) movePlayer('left');
-        if (keys.ArrowRight) movePlayer('right');
-      }
-      gameLoop();
     }
   </script>
 </body>

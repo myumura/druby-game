@@ -4,6 +4,8 @@ class WebSocketHandler
   def initialize(game_server)
     @game_server = game_server
     @sockets = []
+    @last_broadcast_time = 0
+    @broadcast_interval = 0.05 # 50ms間隔で制限
   end
 
   def add_socket(socket)
@@ -29,8 +31,16 @@ class WebSocketHandler
     end
   end
 
-  def broadcast_game_state
+  def broadcast_game_state(force = false)
     return if @game_server.nil?
+    
+    # 頻度制限（強制送信でない場合）
+    current_time = Time.now.to_f
+    if !force && (current_time - @last_broadcast_time) < @broadcast_interval
+      return
+    end
+    
+    @last_broadcast_time = current_time
     
     state = @game_server.get_game_state
     message = JSON.generate({
@@ -68,7 +78,7 @@ class WebSocketHandler
         type: 'register_success',
         role: role
       }))
-      broadcast_game_state
+      broadcast_game_state(true) # 強制送信
     else
       socket.send(JSON.generate({
         type: 'register_failed',
@@ -82,25 +92,25 @@ class WebSocketHandler
     position = data['position']
     rotation = data['rotation']
     result = @game_server.move_player(name, position, rotation)
-    broadcast_game_state if result
+    broadcast_game_state if result # 移動は頻度制限あり
   end
 
   def handle_collect_key(data)
     name = data['name']
     key_id = data['key_id']
     result = @game_server.collect_key(name, key_id)
-    broadcast_game_state if result
+    broadcast_game_state(true) if result # 鍵取得は強制送信
   end
 
   def handle_escape(data)
     name = data['name']
     position = data['position']
     result = @game_server.escape(name, position)
-    broadcast_game_state if result
+    broadcast_game_state(true) if result # 脱出は強制送信
   end
 
   def handle_reset
     result = @game_server.reset
-    broadcast_game_state if result
+    broadcast_game_state(true) if result # リセットは強制送信
   end
 end
