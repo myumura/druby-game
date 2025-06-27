@@ -1,17 +1,31 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
   <title>3D Maze Game</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <style>
     body {
       margin: 0;
       overflow: hidden;
+      /* モバイルブラウザのアドレスバー対応 */
+      height: 100vh;
+      height: 100dvh; /* 動的ビューポート高さ */
     }
     #game-container {
       position: relative;
       width: 100vw;
       height: 100vh;
+      height: 100dvh; /* 動的ビューポート高さ */
+      /* セーフエリア対応 */
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
     }
     #ui-overlay {
       position: absolute;
@@ -92,6 +106,109 @@
     #mute-button.muted:hover {
       background-color: #555;
     }
+    
+    /* モバイル対応のスタイル */
+    @media (max-width: 768px) {
+      #ui-overlay {
+        top: 10px;
+        left: 10px;
+        font-size: 14px;
+      }
+      
+      #restart-button {
+        top: 10px;
+        right: 10px;
+        padding: 8px 16px;
+        font-size: 14px;
+      }
+      
+      #mute-button {
+        top: 50px;
+        right: 10px;
+        padding: 8px 16px;
+        font-size: 14px;
+      }
+      
+      #login-form {
+        width: 90%;
+        max-width: 300px;
+        padding: 15px;
+      }
+      
+      #login-form input,
+      #login-form select,
+      #login-form button {
+        width: 100%;
+        font-size: 16px; /* iOS Safariでのズーム防止 */
+      }
+    }
+    
+    /* バーチャルコントローラーのスタイル */
+    #virtual-controller {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      z-index: 200;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    
+    #virtual-controller.show {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .controller-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    
+    .control-button {
+      width: 60px;
+      height: 60px;
+      background-color: rgba(255, 255, 255, 0.8);
+      border: 2px solid #333;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: bold;
+      color: #333;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    .control-button:active {
+      background-color: rgba(255, 255, 255, 1);
+      transform: scale(0.95);
+    }
+    
+    .control-button.pressed {
+      background-color: rgba(100, 200, 255, 0.9);
+      border-color: #0066cc;
+    }
+    
+    /* 方向キーの特別なスタイル */
+    .direction-button {
+      background-color: rgba(100, 150, 255, 0.8);
+      color: white;
+    }
+    
+    .direction-button:active {
+      background-color: rgba(100, 150, 255, 1);
+    }
+    
+    .direction-button.pressed {
+      background-color: rgba(50, 100, 200, 0.9);
+    }
     #caught-overlay {
       position: fixed;
       top: 0;
@@ -162,6 +279,18 @@
         <p>ゲームを観戦してください</p>
       </div>
     </div>
+    
+    <!-- バーチャルコントローラー -->
+    <div id="virtual-controller">
+      <div class="controller-row">
+        <div class="control-button direction-button" id="btn-up">↑</div>
+      </div>
+      <div class="controller-row">
+        <div class="control-button direction-button" id="btn-left">←</div>
+        <div class="control-button direction-button" id="btn-down">↓</div>
+        <div class="control-button direction-button" id="btn-right">→</div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -192,10 +321,30 @@
     let bgmSource;
     let isMuted = false;
 
-    // 音響システムの初期化
+    // モバイルデバイスの検出
+    function isMobileDevice() {
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+             ('ontouchstart' in window) ||
+             (navigator.maxTouchPoints > 0);
+    }
+
+    // 音響システムの初期化（モバイル対応）
     function initAudioSystem() {
       try {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // モバイルデバイスでは最初のタッチで音響を有効化
+        if (isMobileDevice()) {
+          const enableAudio = () => {
+            if (audioContext.state === 'suspended') {
+              audioContext.resume();
+            }
+            document.removeEventListener('touchstart', enableAudio);
+            document.removeEventListener('click', enableAudio);
+          };
+          document.addEventListener('touchstart', enableAudio);
+          document.addEventListener('click', enableAudio);
+        }
         
         // 効果音の生成（プロシージャル音響）
         sounds = {
@@ -596,6 +745,50 @@
       }
     });
 
+    // バーチャルコントローラーの初期化
+    function initVirtualController() {
+      if (!isMobileDevice()) return;
+      
+      const controller = document.getElementById('virtual-controller');
+      controller.classList.add('show');
+      
+      // タッチイベントの設定
+      const buttons = {
+        'btn-up': 'up',
+        'btn-down': 'down',
+        'btn-left': 'left',
+        'btn-right': 'right'
+      };
+      
+      Object.entries(buttons).forEach(([buttonId, keyName]) => {
+        const button = document.getElementById(buttonId);
+        
+        // タッチ開始
+        const handleTouchStart = (e) => {
+          e.preventDefault();
+          keys[keyName] = true;
+          button.classList.add('pressed');
+        };
+        
+        // タッチ終了
+        const handleTouchEnd = (e) => {
+          e.preventDefault();
+          keys[keyName] = false;
+          button.classList.remove('pressed');
+        };
+        
+        // タッチイベント
+        button.addEventListener('touchstart', handleTouchStart, { passive: false });
+        button.addEventListener('touchend', handleTouchEnd, { passive: false });
+        button.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+        
+        // マウスイベント（デスクトップでのテスト用）
+        button.addEventListener('mousedown', handleTouchStart);
+        button.addEventListener('mouseup', handleTouchEnd);
+        button.addEventListener('mouseleave', handleTouchEnd);
+      });
+    }
+
     // Three.jsの初期化
     function initThreeJS() {
       scene = new THREE.Scene();
@@ -909,6 +1102,11 @@
         
         // restartボタンを非表示
         document.getElementById('restart-button').style.display = 'none';
+        document.getElementById('mute-button').style.display = 'none';
+        
+        // バーチャルコントローラーを非表示
+        const controller = document.getElementById('virtual-controller');
+        controller.classList.remove('show');
         
         // プレイヤー情報をリセット
         playerName = '';
@@ -945,6 +1143,7 @@
             document.getElementById('login-form').classList.add('hidden');
             initThreeJS();
             initAudioSystem(); // 音響システムの初期化
+            initVirtualController(); // バーチャルコントローラーの初期化
             generateMaze();
             // プレイヤーの位置とカメラを初期化
             player.position = { x: 0.5, y: 0, z: 0.5 };
@@ -1517,10 +1716,37 @@
           playerAvatars[name].rotation.y = playerData.rotation || 0;
           scene.add(playerAvatars[name]);
         }
-      }
-    )
-
+      });
     }
+
+    // モバイルブラウザでのスクロール防止
+    document.addEventListener('touchmove', function(e) {
+      if (e.target.closest('#virtual-controller') || e.target.closest('#login-form')) {
+        return; // コントローラーやフォーム内では通常のタッチ操作を許可
+      }
+      e.preventDefault();
+    }, { passive: false });
+
+    // ダブルタップズーム防止
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', function(event) {
+      const now = (new Date()).getTime();
+      if (now - lastTouchEnd <= 300) {
+        event.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, false);
+
+    // 画面の向き変更時の処理（モバイル対応）
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => {
+        if (camera && renderer) {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+      }, 100);
+    });
   </script>
 </body>
 </html>
