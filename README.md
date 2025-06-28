@@ -19,7 +19,7 @@ A real-time 3D multiplayer maze game built with Ruby, DRb, WebSocket, and Three.
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/druby-game.git
+git clone https://github.com/myumura/druby-game.git
 cd druby-game
 ```
 
