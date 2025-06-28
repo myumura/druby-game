@@ -1,4 +1,4 @@
-# DRuby Maze Game
+# dRuby Maze Game
 
 A real-time 3D multiplayer maze game built with Ruby, DRb, WebSocket, and Three.js. Players take on the roles of Hunters and Survivors in a thrilling chase game.
 
