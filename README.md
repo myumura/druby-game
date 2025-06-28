@@ -2,15 +2,6 @@
 
 A real-time 3D multiplayer maze game built with Ruby, DRb, WebSocket, and Three.js. Players take on the roles of Hunters and Survivors in a thrilling chase game.
 
-## Features
-
-- Real-time 3D multiplayer gameplay
-- Hunter vs Survivor gameplay
-- 3D maze environment with procedural generation
-- Key collection and escape mechanics
-- WebSocket for real-time communication
-- Web-based 3D interface using Three.js
-
 ## Game Rules
 
 - **Survivors**: Collect 3 keys（🔑） and escape through the exit point
