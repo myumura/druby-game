@@ -5,7 +5,7 @@ class WebSocketHandler
     @game_server = game_server
     @sockets = []
     @last_broadcast_time = 0
-    @broadcast_interval = 0.05 # 50ms間隔で制限
+    @broadcast_interval = 0.1 # 100ms間隔で制限（さらに緩和）
   end
 
   def add_socket(socket)

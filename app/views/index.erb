@@ -912,7 +912,7 @@
                              Math.abs(player.rotation.y - lastSentPosition.rotation) > 0.1;
       
       if (ws && ws.readyState === WebSocket.OPEN && 
-          positionChanged && currentTime - lastMoveTime > 50) { // 50ms間隔で制限
+          positionChanged && currentTime - lastMoveTime > 100) { // 100ms間隔で制限（さらに緩和）
         const message = {
           type: 'move',
           name: playerName,
@@ -1156,13 +1156,26 @@
             alert(data.message);
             break;
           case 'game_state':
-            // プレイヤーの位置情報を更新
+            // プレイヤーの位置情報を更新（サーバーとの差が大きい場合のみ）
             if (data.state.players && data.state.players[playerName]) {
               const serverPlayer = data.state.players[playerName];
               if (serverPlayer.position) {
-                player.position.x = serverPlayer.position[0];
-                player.position.z = serverPlayer.position[1];
-                player.rotation.y = serverPlayer.rotation;
+                const serverX = serverPlayer.position[0];
+                const serverZ = serverPlayer.position[1];
+                const serverRotation = serverPlayer.rotation;
+                
+                // サーバーとクライアントの位置の差を計算
+                const positionDiff = Math.sqrt(
+                  Math.pow(player.position.x - serverX, 2) + 
+                  Math.pow(player.position.z - serverZ, 2)
+                );
+                
+                // 位置の差が大きい場合のみサーバーの位置に同期（テレポートやリセット時）
+                if (positionDiff > 0.5) {
+                  player.position.x = serverX;
+                  player.position.z = serverZ;
+                  player.rotation.y = serverRotation;
+                }
               }
               
               // 捕まった状態をチェック
@@ -1242,23 +1255,33 @@
             if (gameState.game_state.game_over) {
               const statusDiv = document.getElementById('status');
               if (gameState.game_state.winner === 'survivors') {
-                statusDiv.innerHTML = '<h2 style="color: green;">脱出成功！</h2>';
-                
-                // 脱出成功音を再生
-                if (sounds.escape) {
-                  sounds.escape();
+                // サバイバーが脱出成功した場合の表示を役割別に分ける
+                if (playerRole === 'survivor') {
+                  statusDiv.innerHTML = '<h2 style="color: green;">脱出成功！</h2>';
+                  
+                  // 脱出成功音を再生
+                  if (sounds.escape) {
+                    sounds.escape();
+                  }
+                  
+                  // 脱出成功時のエフェクト
+                  const successGeometry = new THREE.SphereGeometry(5, 32, 32);
+                  const successMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x00ff00,
+                    transparent: true,
+                    opacity: 0.5
+                  });
+                  const successSphere = new THREE.Mesh(successGeometry, successMaterial);
+                  successSphere.position.set(0, 0, 0);
+                  scene.add(successSphere);
+                } else if (playerRole === 'hunter') {
+                  statusDiv.innerHTML = '<h2 style="color: red;">敗北 - サバイバーに脱出されました</h2>';
+                  
+                  // 敗北音を再生
+                  if (sounds.caught) {
+                    sounds.caught();
+                  }
                 }
-                
-                // 脱出成功時のエフェクト
-                const successGeometry = new THREE.SphereGeometry(5, 32, 32);
-                const successMaterial = new THREE.MeshPhongMaterial({
-                  color: 0x00ff00,
-                  transparent: true,
-                  opacity: 0.5
-                });
-                const successSphere = new THREE.Mesh(successGeometry, successMaterial);
-                successSphere.position.set(0, 0, 0);
-                scene.add(successSphere);
 
                 // アニメーションを停止
                 cancelAnimationFrame(animationId);
@@ -1276,7 +1299,11 @@
                 }
               } else {
                 // その他の場合（時間切れなど）
-                statusDiv.innerHTML = '<h2 style="color: red;">ゲームオーバー</h2>';
+                if (playerRole === 'hunter') {
+                  statusDiv.innerHTML = '<h2 style="color: orange;">ハンター勝利！時間切れです</h2>';
+                } else {
+                  statusDiv.innerHTML = '<h2 style="color: red;">ゲームオーバー - 時間切れです</h2>';
+                }
                 
                 // 捕獲音を再生
                 if (sounds.caught) {
